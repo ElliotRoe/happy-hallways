@@ -26,3 +26,5 @@ tsconfig.tsbuildinfo
 docs/teacher-feedback.md
 .svelte-kit/
 build/
+# Private CRM feedback research (SQLite + reports); never commit (public repo)
+research/
