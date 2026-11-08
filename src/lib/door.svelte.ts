@@ -413,7 +413,8 @@ function endPass(studentId: string) {
     {
       kind: 'returned',
       title: `Welcome back, ${pass.studentName}`,
-      message: next ? `${next.studentName}, it's your turn. Tap your name to go.` : 'You are signed back in.',
+      // A student's own device never hears another student's name (docs/adr/0018).
+      message: next && !fromLink ? `${next.studentName}, it's your turn. Tap your name to go.` : 'You are signed back in.',
     },
     4,
   );

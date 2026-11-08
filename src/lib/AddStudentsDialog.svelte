@@ -98,7 +98,7 @@
       Paste a list, one student per line, or choose a CSV. Full names stay on this computer. The kiosk and the Student
       link only ever show a first name plus the fewest letters of the last name it takes to tell students apart.
     </p>
-    {#if cls.studentPins}
+    {#if account.studentPins}
       <p class="muted small">
         Each new student gets a PIN for the kiosk. To choose them yourself, put 3 to 6 digits at the end of each line, like
         <code>Maya Chen, 4821</code>. Make them up; don't use real student ID numbers.

@@ -27,7 +27,7 @@
       })
       .sort((a, b) => a.name.localeCompare(b.name)),
   );
-  const anyPins = $derived(account.classes.some((cls) => cls.studentPins));
+  const anyPins = $derived(!!account.studentPins);
   let confirmNewLink = $state(false);
 
   const viewing = $derived(
@@ -63,7 +63,7 @@
         <h2>{open ? 'Students can view the line' : 'The student link is closed'}</h2>
         <p class="muted small">
           {open
-            ? 'Anyone with the link can see the short names of students who are out or in line.'
+            ? 'Anyone with the link can see whether passes are open and how many students are out or waiting, never who.'
             : 'Nobody can view the line until you open it.'}
         </p>
       </div>
@@ -104,9 +104,9 @@
         <p class="eyebrow">Students' devices</p>
         <h2 id="claims-title">Who can sign out from their own device</h2>
         <p class="muted small">
-          A student picks their name on the link and types their PIN once. Their device then acts as them until you, or
-          they, stop it. Each student can use one device; setting up another stops the first.
-          {#if !anyPins}Students need a PIN for this: turn on PINs in a class's settings.{/if}
+          A student types their first name and PIN on the link, once. Their device then acts as them until you, or they,
+          stop it. Each student can use one device; setting up another stops the first.
+          {#if !anyPins}Students need a PIN for this: turn on PINs on the <a href="/roster">Roster</a>. Until then the link only shows how things stand.{/if}
         </p>
       </div>
       {#if claims.length}
@@ -142,11 +142,10 @@
     <h2>What students see</h2>
     <ul class="sees">
       <li><Icon name="check" size={16} />The class on the kiosk, and whether passes are open or it's a no-pass time</li>
-      <li><Icon name="check" size={16} />Who's out and where they went, by the short name the kiosk shows</li>
-      <li><Icon name="check" size={16} />Each line, in order, and who's up next</li>
+      <li><Icon name="check" size={16} />How many students are out at each place, and how many are waiting in each line</li>
       <li><Icon name="check" size={16} />On their own set-up device: their passes left, their place in line, and how long their own pass has run</li>
       <li class="never">
-        <Icon name="x" size={16} />Never how long anyone else has been out, your PIN, anyone's full name, or anything you've set for a student
+        <Icon name="x" size={16} />Never another student's name, how long anyone else has been out, your PIN, or anything you've set for a student
       </li>
     </ul>
   </section>

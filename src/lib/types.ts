@@ -154,8 +154,6 @@ export type Class = {
   name: string;
   members: Member[];
   createdAt: string;
-  /** Whether students in this class type their PIN at the kiosk after tapping their name. Off unless the teacher turns it on. */
-  studentPins?: boolean;
 };
 
 /** How a pass ended. Everything except "student" and "teacher" means nobody saw the return. */
@@ -225,6 +223,11 @@ export type Account = {
   laptopPeerId: string;
   /** Every student the teacher teaches, each once. See docs/adr/0015. */
   roster: Student[];
+  /**
+   * Whether students type their PIN after tapping their name at the kiosk, in every class, and
+   * whether they can set up their own device on the Student link. Off unless the teacher turns it on.
+   */
+  studentPins?: boolean;
   /** Set once the teacher has seen (or dismissed) the offer to merge students who may be one child. */
   rosterMergeSeen?: boolean;
   classes: Class[];
@@ -381,10 +384,9 @@ export type LaptopMessage =
   | { type: 'ping' };
 
 /**
- * What a student's device is shown over the Student link: the same as the
- * door screen shows about the class on the kiosk, and nothing more. Display
- * Names only; never times, PINs, or how a student's passes are treated.
- * See docs/adr/0012.
+ * What every device on the Student link is shown: how the door stands, in
+ * numbers. Never a student's name: names stay on the kiosk, in the room. A
+ * device's own student sees their own status apart, in OwnView. See docs/adr/0018.
  */
 export type StudentView = {
   /** The class on the kiosk, or null when there is none. */
@@ -393,12 +395,14 @@ export type StudentView = {
   status: 'open' | 'no-pass' | 'between' | 'no-class';
   /** During a No-Pass Time: "Passes open at 9:15 AM.", or that the teacher will open them. */
   whenPassesOpen?: string;
-  /** Who is out now, first to leave first. */
-  out: { name: string; destination: string }[];
-  /** Each Line in order, as the door shows them. Under a Class Limit there is one, with no destination. */
-  lines: { destination: string | null; spots: { name: string; destination: string; upNext: boolean }[] }[];
+  /** How many students are out, at each destination with anyone there. */
+  out: { destination: string; count: number }[];
+  /** How many are waiting in each Line. Under a Class Limit there is one, with no destination. */
+  lines: { destination: string | null; waiting: number }[];
   /** Just enough of each destination to draw its icon. */
   destinations: Pick<Destination, 'label' | 'color' | 'icon'>[];
+  /** Whether a student can set up their own device: only while PINs are on. */
+  claimsOpen: boolean;
 };
 
 /**
@@ -412,8 +416,6 @@ export type StudentLinkMessage =
   | { type: 'full' }
   | { type: 'old-link' }
   | { type: 'ping' }
-  /** The names to pick from when claiming a device: the class on the door, Display Names only. */
-  | { type: 'names'; students: { id: string; name: string }[] }
   | { type: 'claimed'; token: string; name: string }
   | { type: 'claim-refused'; message: string }
   /** The teacher (or the student, or a new device) ended this device's Claim. */
@@ -443,7 +445,7 @@ export type LinkAction = Extract<DoorAction, { kind: 'pass' | 'back' | 'join' | 
 /** Messages from a student's device to the teacher's computer. */
 export type StudentMessage =
   | { type: 'ping' }
-  | { type: 'names' }
-  | { type: 'claim'; studentId: string; pin: string }
+  /** A student sets up their device by typing their first name and PIN; no list of names is ever sent. */
+  | { type: 'claim'; firstName: string; pin: string }
   | { type: 'act'; token: string; action: LinkAction }
   | { type: 'end-claim'; token: string };

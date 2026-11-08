@@ -93,6 +93,8 @@ type SavedAccount = Omit<Account, 'destinations' | 'classes' | 'schedules' | 'se
   seenPopups?: Record<string, string>;
   classes: (Omit<Class, 'members'> & {
     members?: Class['members'];
+    /** PINs used to be turned on class by class. */
+    studentPins?: boolean;
     students?: OlderStudent[];
     destinations?: { label: string; minutes: number }[];
     limit?: number;
@@ -169,9 +171,13 @@ function upgrade(saved: SavedAccount): Account {
     // A brand-new teacher, or one whose classes held nobody, has nothing to merge.
     if (!roster.length) saved.rosterMergeSeen = true;
   }
+  // PINs used to be turned on class by class; a student now has one PIN in every class,
+  // so they're on for everyone if any class had them.
+  if (saved.classes.some((cls) => cls.studentPins)) saved.studentPins = true;
   for (const cls of saved.classes) {
     cls.members ??= [];
     delete cls.students;
+    delete cls.studentPins;
   }
   return saved as Account;
 }
@@ -615,31 +621,33 @@ export function applyImport(classId: string, plan: ImportPlan, removeIds: string
     cls.members.push({ studentId: student.id, lastPrefix: entry.lastPrefix, status: 'current' });
   }
   for (const id of removeIds) removeStudentFrom(cls, id);
-  if (cls.studentPins) giveEveryonePins(cls);
+  if (account.studentPins) giveEveryonePins();
   save();
 }
 
 /**
- * Hands a random PIN to every current student in the class who has none,
- * unique on the Roster and never the teacher's. Former students' PINs stay
- * taken, in case they're brought back.
+ * Hands a random PIN to every student on the Roster who has none, unique on
+ * the Roster and never the teacher's.
  */
-function giveEveryonePins(cls: Class) {
+function giveEveryonePins() {
   const taken = new Set([account.pin, ...account.roster.flatMap((student) => (student.pin ? [student.pin] : []))]);
-  for (const member of cls.members) {
-    const student = findStudent(member.studentId);
-    if (!student || student.pin || member.status !== 'current') continue;
+  for (const student of account.roster) {
+    if (student.pin) continue;
     student.pin = randomPin(taken);
     taken.add(student.pin);
   }
 }
 
-/** Turns asking for PINs at the kiosk on or off for one class. Turning it on gives a PIN to anyone without one. */
-export function setStudentPins(classId: string, on: boolean) {
-  const cls = findClass(classId);
-  if (!cls) return;
-  cls.studentPins = on || undefined;
-  if (on) giveEveryonePins(cls);
+/**
+ * Turns PINs on or off for every class: at the kiosk, and for setting up a
+ * device on the Student link. Turning them on gives a PIN to anyone without
+ * one; turning them off stops every device acting as a student, since a Claim
+ * needs a PIN. See docs/adr/0016.
+ */
+export function setStudentPins(on: boolean) {
+  account.studentPins = on || undefined;
+  if (on) giveEveryonePins();
+  else account.claims = [];
   save();
 }
 
@@ -722,7 +730,7 @@ export function restoreStudent(classId: string, studentId: string) {
   const member = memberOf(classId, studentId);
   if (!cls || !member) return;
   member.status = 'current';
-  if (cls.studentPins) giveEveryonePins(cls);
+  if (account.studentPins) giveEveryonePins();
   save();
 }
 
@@ -977,7 +985,7 @@ export function doorSetup(): DoorSetup {
           name: displayName(student),
           exempt: skipsAllowance(student) || undefined,
           alwaysGo: student.alwaysGo,
-          pin: cls.studentPins ? student.pin : undefined,
+          pin: account.studentPins ? student.pin : undefined,
         })),
     })),
     destinations: account.limitMode === 'class' ? classLimitOnEachDestination() : account.destinations,

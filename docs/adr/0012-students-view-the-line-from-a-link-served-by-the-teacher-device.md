@@ -1,5 +1,5 @@
 ---
-status: amended by ADR-0016
+status: amended by ADR-0016 and ADR-0018
 ---
 
 # Students view the Line from a link, served by the teacher's computer

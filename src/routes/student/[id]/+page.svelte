@@ -6,26 +6,23 @@
   import DestinationIcon from '#lib/DestinationIcon.svelte';
   import Icon from '#lib/Icon.svelte';
   import { createPeer, keepAlive, studentLinkPrefix } from '#lib/peer.ts';
-  import type {
-    DoorNoticeMessage,
-    LinkAction,
-    OwnView,
-    StudentLinkMessage,
-    StudentMessage,
-    StudentView,
-  } from '#lib/types.ts';
+  import type { DoorNoticeMessage, LinkAction, OwnView, StudentLinkMessage, StudentMessage, StudentView } from '#lib/types.ts';
 
   /**
-   * The Student link, on a student's own Chromebook or phone: who is out, the
-   * Line, and whether passes are open, straight from the teacher's computer.
-   * See docs/adr/0012. Once a student Claims this device with their name and
-   * PIN, it acts as them too: going, coming back, lining up and asking. The
-   * teacher's computer decides; this device keeps only the Claim's random
+   * The Student link, on a student's own Chromebook or phone: whether passes
+   * are open, and how many are out and waiting, straight from the teacher's
+   * computer. It never shows another student's name (docs/adr/0018). Once a
+   * student sets up this device with their first name and PIN, it acts as them:
+   * going, coming back, lining up and asking, and it shows their own status.
+   * The teacher's computer decides; this device keeps only the Claim's random
    * token. See docs/adr/0016.
    */
   type Reach = 'connecting' | 'live' | 'unreachable' | 'closed' | 'full' | 'old-link';
   let reach = $state<Reach>('connecting');
   let view = $state<StudentView | null>(null);
+
+  /** How long to wait before trying the teacher's computer again, by what happened last time. */
+  const retrySeconds: Partial<Record<Reach, number>> = { unreachable: 10, closed: 20, full: 30 };
 
   const claimKey = `hallway.claim.${page.params.id}`;
   function savedClaim(): { token: string; name: string } | null {
@@ -42,18 +39,15 @@
   let tick = $state(Date.now());
   let notice = $state<DoorNoticeMessage | null>(null);
   let noticeTimer = 0;
-  /** Claiming: choosing their name, then typing their PIN. */
-  let claiming = $state<'off' | 'names' | 'pin'>('off');
-  let names = $state<{ id: string; name: string }[]>([]);
-  let picked = $state<{ id: string; name: string } | null>(null);
+  /** What the panel at the bottom is doing: its usual buttons, setting up this device, or choosing where to go. */
+  let panel = $state<'main' | 'setup' | 'choose'>('main');
+  let firstName = $state('');
   let pin = $state('');
-  let claimError = $state('');
-  /** Choosing where to go. */
-  let choosing = $state(false);
+  let setupError = $state('');
 
   let say: (message: StudentMessage) => void = () => {};
   /** The teacher's computer checks every action is this device's own student. */
-  const claimedId = () => me?.studentId ?? '';
+  const myId = () => me?.studentId ?? '';
 
   function forgetClaim() {
     claimed = null;
@@ -63,32 +57,31 @@
 
   function act(action: LinkAction) {
     if (claimed) say({ type: 'act', token: claimed.token, action });
-    choosing = false;
+    panel = 'main';
+    notice = null;
   }
 
-  function startClaim() {
-    claimError = '';
+  function startSetup() {
+    setupError = '';
     pin = '';
-    picked = null;
-    names = [];
-    claiming = 'names';
-    say({ type: 'names' });
+    panel = 'setup';
   }
 
-  function sendPin(event: SubmitEvent) {
+  function sendSetup(event: SubmitEvent) {
     event.preventDefault();
-    if (picked && /^\d{3,6}$/.test(pin)) say({ type: 'claim', studentId: picked.id, pin });
+    if (firstName.trim() && /^\d{3,6}$/.test(pin)) say({ type: 'claim', firstName: firstName.trim(), pin });
   }
 
   function hear(message: StudentLinkMessage) {
-    if (message.type === 'names') names = message.students;
     if (message.type === 'claimed') {
       claimed = { token: message.token, name: message.name };
       localStorage.setItem(claimKey, JSON.stringify(claimed));
-      claiming = 'off';
+      panel = 'main';
+      firstName = '';
+      pin = '';
     }
     if (message.type === 'claim-refused') {
-      claimError = message.message;
+      setupError = message.message;
       pin = '';
     }
     if (message.type === 'claim-ended') forgetClaim();
@@ -109,9 +102,6 @@
   });
 
   const minutesOut = $derived(outSince ? Math.floor((tick - outSince) / 60_000) : 0);
-
-  /** How long to wait before trying the teacher's computer again, by what happened last time. */
-  const retrySeconds: Partial<Record<Reach, number>> = { unreachable: 10, closed: 20, full: 30 };
 
   onMount(() => {
     const address = studentLinkPrefix + page.params.id;
@@ -189,16 +179,18 @@
   });
 
   const list = $derived(view?.destinations ?? []);
+  const outTotal = $derived(view?.out.reduce((sum, each) => sum + each.count, 0) ?? 0);
   const statusText = $derived(
     view
       ? {
-          open: 'Passes are open',
-          'no-pass': 'No passes right now',
+          open: 'Passes open',
+          'no-pass': 'No passes',
           between: 'Between classes',
-          'no-class': 'No class right now',
+          'no-class': 'No class',
         }[view.status]
       : '',
   );
+  const ordinal = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
 </script>
 
 <svelte:head>
@@ -218,22 +210,19 @@
       <div class="title">
         <h1>{view.className ?? 'No class right now'}</h1>
         <p class="status {view.status}" role="status">
-          <Icon name={view.status === 'open' ? 'door' : view.status === 'no-pass' ? 'ban' : 'pause'} size={22} />
-          <span><strong>{statusText}</strong>{#if view.whenPassesOpen} {view.whenPassesOpen}{/if}</span>
+          <Icon name={view.status === 'open' ? 'door' : view.status === 'no-pass' ? 'ban' : 'pause'} size={18} />
+          {statusText}
         </p>
       </div>
+      {#if view.whenPassesOpen}<p class="when">{view.whenPassesOpen}</p>{/if}
 
       {#if view.className}
-        <section aria-labelledby="out-title">
-          <h2 id="out-title">Out of class <span class="count">{view.out.length}</span></h2>
+        <section class="card" aria-labelledby="out-title">
+          <h2 id="out-title">Out of class <span class="count">{outTotal}</span></h2>
           {#if view.out.length}
-            <ul class="people">
-              {#each view.out as each, index (index)}
-                <li>
-                  <DestinationIcon label={each.destination} {list} size={30} />
-                  <strong>{each.name}</strong>
-                  <span class="where">{each.destination}</span>
-                </li>
+            <ul class="tallies">
+              {#each view.out as each (each.destination)}
+                <li><DestinationIcon label={each.destination} {list} size={26} /><span>{each.destination}</span><strong>{each.count}</strong></li>
               {/each}
             </ul>
           {:else}
@@ -241,133 +230,124 @@
           {/if}
         </section>
 
-        {#each view.lines as line (line.destination)}
-          <section aria-label={line.destination ? `The line for ${line.destination}` : 'The line'}>
-            <h2>
-              {#if line.destination}<DestinationIcon label={line.destination} {list} size={26} />{line.destination} line{:else}Line{/if}
-              <span class="count">{line.spots.length}</span>
-            </h2>
-            <ol class="people">
-              {#each line.spots as spot, index (index)}
-                <li class:next={spot.upNext}>
-                  <span class="place">{index + 1}</span>
-                  <strong>{spot.name}</strong>
-                  <!-- In the Class Line, each student shows where they're going. -->
-                  {#if !line.destination}<span class="where"><DestinationIcon label={spot.destination} {list} size={22} />{spot.destination}</span>{/if}
-                  {#if spot.upNext}<span class="turn">Up next</span>{/if}
+        {#if view.lines.length}
+          <section class="card" aria-labelledby="lines-title">
+            <h2 id="lines-title">Waiting in line</h2>
+            <ul class="tallies">
+              {#each view.lines as line (line.destination)}
+                <li>
+                  {#if line.destination}<DestinationIcon label={line.destination} {list} size={26} /><span>{line.destination}</span>{:else}<span>The line</span>{/if}
+                  <strong>{line.waiting}</strong>
                 </li>
               {/each}
-            </ol>
+            </ul>
           </section>
-        {/each}
+        {/if}
+
+        {#if claimed && me}
+          <section class="card mine" aria-labelledby="mine-title">
+            <h2 id="mine-title">{me.name}</h2>
+            {#if me.out}
+              <p class="mine-status">
+                <DestinationIcon label={me.out.destination} {list} size={24} />Out at {me.out.destination} · {minutesOut} min{#if me.out.minutes}
+                  of {me.out.minutes}{/if}
+              </p>
+            {:else if !me.canAct}
+              <p class="mine-status">You can sign out from here during your class.</p>
+            {:else if me.request}
+              <p class="mine-status">You asked your teacher for {me.request.destination}. If they say yes, go.</p>
+            {:else if me.line}
+              <p class="mine-status">
+                {me.line.upNext ? "It's your turn!" : `You're ${ordinal(me.line.position)} in line for ${me.line.destination}.`}
+              </p>
+            {:else}
+              <p class="mine-status">In class</p>
+            {/if}
+            {#if me.passesLeft}<p class="muted-note">{me.passesLeft}</p>{/if}
+          </section>
+        {/if}
       {/if}
 
-      {#if claimed && me}
-        <section class="mine" aria-labelledby="mine-title">
-          <h2 id="mine-title">{me.name}</h2>
-          {#if me.out}
-            <p class="mine-status">
-              Out · <DestinationIcon label={me.out.destination} {list} size={22} />{me.out.destination} · {minutesOut} min{#if me.out.minutes}
-                of {me.out.minutes}{/if}
-            </p>
-            <button class="big primary" onclick={() => act({ kind: 'back', studentId: claimedId() })}>I'm back</button>
+      <!--
+        One panel at the bottom holds every action and every reply. A reply
+        replaces the buttons in the same place, so nothing on the page moves.
+      -->
+      <section class="panel" aria-label="What you can do">
+        {#if notice}
+          <div class="reply {notice.kind}" role="alert">
+            {#if notice.eyebrow}<p class="eyebrow">{notice.eyebrow}</p>{/if}
+            <strong>{notice.title}</strong>
+            <p>{notice.message}</p>
+            <div class="buttons">
+              {#if notice.offerLine}
+                {@const offer = notice.offerLine}
+                <button class="big primary" onclick={() => act({ kind: 'join', studentId: offer.studentId, destination: offer.destination })}>
+                  Join the line
+                </button>
+              {/if}
+              {#if notice.offerTeacher}
+                {@const offer = notice.offerTeacher}
+                <button class="big" onclick={() => act({ kind: 'ask', studentId: offer.studentId, destination: offer.destination })}>
+                  <Icon name="hand" size={18} />Ask my teacher
+                </button>
+              {/if}
+              {#if notice.undoPassId}
+                {@const passId = notice.undoPassId}
+                <button class="big" onclick={() => act({ kind: 'undo', passId })}>Oops, undo</button>
+              {/if}
+              <button class="big" onclick={() => (notice = null)}>OK</button>
+            </div>
+          </div>
+        {:else if claimed && me}
+          {#if panel === 'choose'}
+            <p class="panel-title">Where are you going?</p>
+            <div class="buttons">
+              {#each list as destination (destination.label)}
+                <button class="big" onclick={() => act({ kind: 'pass', studentId: myId(), destination: destination.label })}>
+                  <DestinationIcon label={destination.label} {list} size={24} />{destination.label}
+                </button>
+              {/each}
+              <button class="link-btn" onclick={() => (panel = 'main')}>Cancel</button>
+            </div>
+          {:else if me.out}
+            <button class="big primary" onclick={() => act({ kind: 'back', studentId: myId() })}>I'm back</button>
           {:else if !me.canAct}
-            <p class="mine-status">You can sign out from here during your class.</p>
+            <!-- Nothing to do until their class is on. -->
           {:else if me.request}
-            <p class="mine-status">You asked your teacher for {me.request.destination}. If they say yes, go.</p>
-            <button class="big" onclick={() => act({ kind: 'cancel-request', studentId: claimedId() })}>Cancel my request</button>
+            <button class="big" onclick={() => act({ kind: 'cancel-request', studentId: myId() })}>Cancel my request</button>
           {:else if me.line}
-            <p class="mine-status">
-              {me.line.upNext ? "It's your turn!" : `You're number ${me.line.position} in line for ${me.line.destination}.`}
-            </p>
             {#if me.line.upNext}
-              <button class="big primary" onclick={() => act({ kind: 'pass', studentId: claimedId(), destination: me!.line!.destination })}>
+              <button class="big primary" onclick={() => act({ kind: 'pass', studentId: myId(), destination: me!.line!.destination })}>
                 Go to {me.line.destination}
               </button>
             {/if}
-            <button class="big" onclick={() => act({ kind: 'leave', studentId: claimedId() })}>Leave the line</button>
-          {:else if choosing}
-            <p class="mine-status">Where are you going?</p>
-            <div class="choices">
-              {#each list as destination (destination.label)}
-                <button class="big" onclick={() => act({ kind: 'pass', studentId: claimedId(), destination: destination.label })}>
-                  <DestinationIcon label={destination.label} {list} size={26} />{destination.label}
-                </button>
-              {/each}
-              <button class="link-btn" onclick={() => (choosing = false)}>Cancel</button>
-            </div>
+            <button class="big" onclick={() => act({ kind: 'leave', studentId: myId() })}>Leave the line</button>
           {:else}
-            <button class="big primary" onclick={() => (choosing = true)}><Icon name="door" size={20} />I need to leave</button>
-          {/if}
-          {#if me.passesLeft}<p class="muted-note">{me.passesLeft}</p>{/if}
-          {#if notice}
-            <div class="notice {notice.kind}" role="alert">
-              {#if notice.eyebrow}<p class="eyebrow">{notice.eyebrow}</p>{/if}
-              <strong>{notice.title}</strong>
-              <p>{notice.message}</p>
-              <div class="choices">
-                {#if notice.offerLine}
-                  {@const offer = notice.offerLine}
-                  <button class="big primary" onclick={() => act({ kind: 'join', studentId: offer.studentId, destination: offer.destination })}>
-                    Join the line
-                  </button>
-                {/if}
-                {#if notice.offerTeacher}
-                  {@const offer = notice.offerTeacher}
-                  <button class="big" onclick={() => act({ kind: 'ask', studentId: offer.studentId, destination: offer.destination })}>
-                    <Icon name="hand" size={18} />Ask my teacher
-                  </button>
-                {/if}
-                {#if notice.undoPassId}
-                  {@const passId = notice.undoPassId}
-                  <button class="link-btn" onclick={() => act({ kind: 'undo', passId })}>Oops, undo</button>
-                {/if}
-                <button class="link-btn" onclick={() => (notice = null)}>OK</button>
-              </div>
-            </div>
+            <button class="big primary" onclick={() => (panel = 'choose')}><Icon name="door" size={20} />I need to leave</button>
           {/if}
           <button class="link-btn" onclick={() => claimed && say({ type: 'end-claim', token: claimed.token })}>
-            This isn't me: stop using this device as {me.name}
+            Not {me.name}? Stop using this device as them
           </button>
-        </section>
-      {:else if claiming !== 'off'}
-        <section class="mine" aria-labelledby="claim-title">
-          {#if claiming === 'names'}
-            <h2 id="claim-title">Which one is you?</h2>
-            {#if names.length}
-              <div class="choices names">
-                {#each names as each (each.id)}
-                  <button class="big" onclick={() => ((picked = each), (claiming = 'pin'), (claimError = ''))}>{each.name}</button>
-                {/each}
-              </div>
-            {:else}
-              <p class="muted-note">You can set this up during your class.</p>
-            {/if}
-          {:else}
-            <h2 id="claim-title">Type your PIN, {picked?.name}</h2>
-            <form class="pin-form" onsubmit={sendPin}>
-              <input
-                type="password"
-                inputmode="numeric"
-                autocomplete="off"
-                maxlength="6"
-                aria-label="Your PIN"
-                bind:value={pin}
-              />
-              <button class="big primary" disabled={!/^\d{3,6}$/.test(pin)}>Use this device</button>
-            </form>
-            <p class="muted-note">You only do this once. After that, this device signs you out and back in.</p>
-          {/if}
-          {#if claimError}<p class="claim-error" role="alert">{claimError}</p>{/if}
-          <button class="link-btn" onclick={() => (claiming = 'off')}>Cancel</button>
-        </section>
-      {:else}
-        <button class="big" onclick={startClaim}><Icon name="user-round" size={20} />Sign out from this device</button>
-      {/if}
-
-      <p class="foot">
-        This page updates by itself.{#if !claimed} To sign out from here, set this device up with your PIN once, or use the kiosk by the door.{/if}
-      </p>
+        {:else if view.claimsOpen && panel === 'setup'}
+          <p class="panel-title">Set up this device as yours</p>
+          <form class="setup" onsubmit={sendSetup}>
+            <label>Your first name <input bind:value={firstName} autocomplete="off" autocapitalize="words" /></label>
+            <label>
+              Your PIN
+              <input type="password" inputmode="numeric" autocomplete="off" maxlength="6" bind:value={pin} />
+            </label>
+            <button class="big primary" disabled={!firstName.trim() || !/^\d{3,6}$/.test(pin)}>Use this device</button>
+          </form>
+          {#if setupError}<p class="setup-error" role="alert">{setupError}</p>{/if}
+          <p class="muted-note">You only do this once. After that, this device signs you out and back in.</p>
+          <button class="link-btn" onclick={() => (panel = 'main')}>Cancel</button>
+        {:else if view.claimsOpen}
+          <button class="big" onclick={startSetup}><Icon name="user-round" size={20} />Sign out from this device</button>
+          <p class="muted-note">Or use the kiosk by the door.</p>
+        {:else}
+          <p class="muted-note">This page updates by itself. To sign out, use the kiosk by the door.</p>
+        {/if}
+      </section>
     </main>
   {:else}
     <main class="message" role="status">
@@ -401,10 +381,12 @@
 <style>
   /* Read on a Chromebook or a phone: big, friendly and plain. */
   .student {
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
     max-width: 720px;
     margin: 0 auto;
-    padding: 20px 16px 40px;
+    padding: 20px 16px 0;
   }
 
   .brand-row {
@@ -418,13 +400,18 @@
   }
 
   .live {
-    display: grid;
-    gap: 22px;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 16px;
   }
 
   .title {
-    display: grid;
-    gap: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
   }
 
   h1 {
@@ -432,16 +419,17 @@
   }
 
   .status {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 12px;
-    padding: 14px 18px;
+    gap: 8px;
+    padding: 6px 14px;
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 999px;
     background: var(--surface-sunk);
     color: var(--muted);
-    font-size: 18px;
-    line-height: 1.3;
+    font-size: 16px;
+    font-weight: 800;
+    white-space: nowrap;
   }
 
   .status.open {
@@ -456,9 +444,19 @@
     color: var(--warn);
   }
 
-  section {
+  .when {
+    margin-top: -6px;
+    color: var(--muted);
+    font-size: 16px;
+  }
+
+  .card {
     display: grid;
     gap: 10px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
   }
 
   h2 {
@@ -480,7 +478,7 @@
     font-size: 14px;
   }
 
-  .people {
+  .tallies {
     display: grid;
     gap: 8px;
     margin: 0;
@@ -488,63 +486,138 @@
     list-style: none;
   }
 
-  .people li {
+  .tallies li {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 8px 12px;
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--surface);
+    gap: 10px;
     font-size: 18px;
   }
 
-  .where {
-    display: inline-flex;
+  .tallies strong {
+    margin-left: auto;
+    font-size: 20px;
+  }
+
+  .mine-status {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
-    color: var(--muted);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
   }
 
-  .place {
+  .empty-note,
+  .muted-note {
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  /* Always the last thing on the page, held to the bottom of the screen. */
+  .panel {
+    position: sticky;
+    bottom: 0;
     display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    background: #e1ecf8;
-    color: #2361a6;
-    font-size: 14px;
+    gap: 10px;
+    margin: auto -16px 0;
+    padding: 16px 16px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .panel-title {
+    font-size: 18px;
     font-weight: 800;
   }
 
-  .people li.next {
-    border-color: #c7dccd;
-    background: var(--accent-wash);
+  .buttons {
+    display: grid;
+    gap: 8px;
   }
 
-  .turn {
-    margin-left: auto;
-    padding: 2px 10px;
-    border-radius: 999px;
+  .big {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 52px;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: inherit;
+    font: inherit;
+    font-size: 18px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .big.primary {
+    border-color: var(--accent);
     background: var(--accent);
     color: #fff;
-    font-size: 14px;
-    font-weight: 800;
   }
 
-  .empty-note,
-  .foot {
+  .big:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .link-btn {
+    justify-self: center;
+    padding: 4px 0;
+    border: 0;
+    background: none;
     color: var(--muted);
-    font-size: 16px;
+    font: inherit;
+    font-size: 15px;
+    text-decoration: underline;
+    cursor: pointer;
   }
 
-  .foot {
-    margin-top: 6px;
-    font-size: 14px;
+  .reply {
+    display: grid;
+    gap: 6px;
+    font-size: 17px;
+  }
+
+  .reply.approved strong {
+    color: var(--accent);
+  }
+
+  .reply.denied strong {
+    color: var(--warn);
+  }
+
+  .reply .eyebrow {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .setup {
+    display: grid;
+    gap: 10px;
+  }
+
+  .setup label {
+    display: grid;
+    gap: 4px;
+    font-weight: 700;
+  }
+
+  .setup input {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font: inherit;
+    font-size: 20px;
+  }
+
+  .setup-error {
+    color: var(--warn);
+    font-weight: 700;
   }
 
   .message {
@@ -578,121 +651,5 @@
   .icon-ring.warn {
     background: var(--warn-wash);
     color: var(--warn);
-  }
-  /* The student's own card, once this device is theirs. */
-  .mine {
-    display: grid;
-    gap: 12px;
-    padding: 16px;
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    background: var(--surface);
-  }
-
-  .mine-status {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    font-size: 18px;
-    font-weight: 700;
-  }
-
-  .choices {
-    display: grid;
-    gap: 8px;
-  }
-
-  .choices.names {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  }
-
-  .big {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    min-height: 52px;
-    padding: 10px 16px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--surface-sunk);
-    color: inherit;
-    font: inherit;
-    font-size: 18px;
-    font-weight: 800;
-    cursor: pointer;
-  }
-
-  .big.primary {
-    border-color: var(--accent);
-    background: var(--accent);
-    color: #fff;
-  }
-
-  .big:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-
-  .link-btn {
-    justify-self: start;
-    padding: 4px 0;
-    border: 0;
-    background: none;
-    color: var(--muted);
-    font: inherit;
-    font-size: 15px;
-    text-decoration: underline;
-    cursor: pointer;
-  }
-
-  .notice {
-    display: grid;
-    gap: 8px;
-    padding: 14px;
-    border-radius: 12px;
-    background: var(--surface-sunk);
-    font-size: 17px;
-  }
-
-  .notice.approved {
-    background: var(--accent-wash);
-  }
-
-  .notice.denied {
-    background: var(--warn-wash);
-  }
-
-  .notice .eyebrow {
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-
-  .pin-form {
-    display: grid;
-    gap: 10px;
-  }
-
-  .pin-form input {
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    font: inherit;
-    font-size: 24px;
-    letter-spacing: 0.3em;
-    text-align: center;
-  }
-
-  .muted-note {
-    color: var(--muted);
-    font-size: 15px;
-  }
-
-  .claim-error {
-    color: var(--warn);
-    font-weight: 700;
   }
 </style>

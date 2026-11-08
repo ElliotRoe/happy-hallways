@@ -30,7 +30,7 @@ test('the same student in two classes is one student on the Roster, with their f
 
   await page.getByRole('link', { name: 'Roster', exact: true }).click();
   await expect(page.getByRole('row', { name: /Maya Chen/ })).toContainText('Period 1, Period 2');
-  await expect(page.getByRole('row')).toHaveCount(4); // the heading row, Jordan, Maya and Sam
+  await expect(page.getByRole('row')).toHaveCount(5); // the heading row, Jordan, Maya, Sam and the totals
 });
 
 test("a student the teacher says isn't the same joins as a new student", async ({ page }) => {

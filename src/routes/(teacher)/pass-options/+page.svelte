@@ -108,11 +108,11 @@
       <div>
         <h2>Pass Allowance</h2>
         <p class="muted small">
-          How many passes each student gets in a stretch of time. Each class counts on its own. Students see how many
-          they have left when they tap their name. Untick a destination's "Counts toward the Pass Allowance" box for
-          trips like the Nurse. On a class's Students page, edit a student to tick “Can always go” for a medical need
-          or an IEP or 504 plan (no allowance, limit, line or no-pass time ever holds them back), or exempt them from
-          the Pass Allowance only.
+          How many passes each student gets in a stretch of time, counted across all your classes. Students see how
+          many they have left when they tap their name. Untick a destination's "Counts toward the Pass Allowance" box
+          for trips like the Nurse. On the <a href="/roster">Roster</a>, edit a student to tick “Can always go” for a
+          medical need or an IEP or 504 plan (no allowance, limit, line or no-pass time ever holds them back), or exempt
+          them from the Pass Allowance only.
         </p>
       </div>
       <label class="switch">

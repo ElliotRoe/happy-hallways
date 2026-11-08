@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { classStudents, findClass } from '#lib/account.svelte.ts';
+  import { account, classStudents, findClass } from '#lib/account.svelte.ts';
   import Icon from '#lib/Icon.svelte';
   import { displayName } from '#lib/roster.ts';
 
@@ -26,8 +26,8 @@
     <p class="eyebrow">Kiosk PINs</p>
     <h2>Print PIN cards</h2>
   </div>
-  {#if !cls.studentPins}
-    <p class="muted">This class doesn't ask for PINs at the kiosk. Turn them on in Class settings first.</p>
+  {#if !account.studentPins}
+    <p class="muted">PINs are off. Turn them on on the <a href="/roster">Roster</a> first.</p>
   {:else}
     <p class="muted small">
       One card per student. Cut them apart and hand each student only their own. A student who forgets theirs can still
@@ -37,12 +37,12 @@
       <button class="btn btn-primary" onclick={() => window.print()} disabled={!cards.length}>
         <Icon name="printer" size={16} />Print
       </button>
-      <a class="btn btn-quiet" href="/classes/{cls.id}"><Icon name="arrow-left" size={16} />Back to students</a>
+      <a class="btn btn-quiet" href="/roster"><Icon name="arrow-left" size={16} />Back to the Roster</a>
     </div>
   {/if}
 </section>
 
-{#if cls.studentPins}
+{#if account.studentPins}
   <div class="pin-cards" aria-label="PIN cards">
     {#each cards as card (card.id)}
       <div class="pin-card">

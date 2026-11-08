@@ -1,9 +1,13 @@
+---
+status: amended by ADR-0018
+---
+
 # Students act from the Student link through a Claim
 
 The Student link (ADR 0012) only looked. Teachers kept asking for students to
 make passes from their own Chromebooks and phones, often because they have no
 spare device for a kiosk. Now a student can Claim their own device on the link
-by picking their name and typing their PIN once; from then on that device can
+by typing their first name and PIN once (ADR 0018); from then on that device can
 start a pass, sign back in, join or leave a Line and make a Request, exactly as
 at the kiosk. A kiosk becomes optional.
 

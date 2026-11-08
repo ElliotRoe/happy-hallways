@@ -1,24 +1,47 @@
 <script lang="ts">
-  import { account, classesOf, dismissRosterMerge, mergeStudents } from '#lib/account.svelte.ts';
+  import { page } from '$app/state';
+  import { replaceState } from '$app/navigation';
+  import { account, classesOf, dismissRosterMerge, findStudent, mergeStudents, setStudentPins } from '#lib/account.svelte.ts';
+  import EditStudentDialog from '#lib/EditStudentDialog.svelte';
   import Icon from '#lib/Icon.svelte';
   import { mergeSuggestions } from '#lib/merge.ts';
+  import { minutesOut, startOfWeek } from '#lib/stats.ts';
+  import type { Student } from '#lib/types.ts';
 
   /**
    * The Roster: every student the teacher teaches, each once, with the classes
-   * they're in. Full names stay on this computer. See docs/adr/0015 and 0017.
+   * they're in, their PIN and how often they've gone this week across every
+   * class. Full names stay on this computer. See docs/adr/0015 and 0017.
    */
   const suggestions = $derived(mergeSuggestions(account));
+  let showPins = $state(false);
+  /** A class page links here with ?student=, to edit that student. */
+  let editing = $state<Student | null>(findStudent(page.url.searchParams.get('student') ?? undefined) ?? null);
+
+  function closeEditor() {
+    editing = null;
+    if (page.url.searchParams.has('student')) replaceState('/roster', {});
+  }
 
   const shownPrefix = (studentId: string) =>
     account.classes.flatMap((cls) => cls.members).find((member) => member.studentId === studentId)?.lastPrefix ?? '';
   const nameOf = (student: { id: string; firstName: string; lastName?: string }) =>
     student.lastName ? `${student.firstName} ${student.lastName}` : `${student.firstName} ${shownPrefix(student.id)}${shownPrefix(student.id) ? '.' : ''}`;
 
-  const rows = $derived(
-    account.roster
-      .map((student) => ({ student, name: nameOf(student), classes: classesOf(student.id) }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
-  );
+  const rows = $derived.by(() => {
+    const weekStart = startOfWeek().toISOString();
+    const thisWeek = account.passes.filter((pass) => pass.outAt >= weekStart && pass.endedBy !== 'cancelled');
+    return account.roster
+      .map((student) => {
+        const mine = thisWeek.filter((pass) => pass.studentId === student.id);
+        return { student, name: nameOf(student), classes: classesOf(student.id), week: mine.length, minutesWeek: minutesOut(mine) };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  });
+  const totals = $derived({
+    week: rows.reduce((sum, row) => sum + row.week, 0),
+    minutesWeek: rows.reduce((sum, row) => sum + row.minutesWeek, 0),
+  });
 </script>
 
 <svelte:head>
@@ -32,8 +55,8 @@
       <h1>Your students</h1>
       <p class="muted">
         Every student you teach, once, whichever classes they're in. A student in two of your classes shares one PIN, one
-        Pass Allowance and one history. Full names stay on this computer; the kiosk and the Student link only ever show a
-        first name and a few letters.
+        Pass Allowance and one history. Full names stay on this computer; the kiosk only ever shows a first name and a few
+        letters.
       </p>
     </div>
   </header>
@@ -68,6 +91,39 @@
     </section>
   {/if}
 
+  <section class="card" aria-labelledby="pins-title">
+    <div class="option-row">
+      <div>
+        <h2 id="pins-title">Student PINs</h2>
+        <p class="muted small">
+          After tapping their name at the kiosk, each student types their own PIN, so nobody signs out as someone else. A
+          student needs one to set up their own device on the Student link, too. Each student has one PIN for all your
+          classes. Happy Hallways makes them up; never use real student ID numbers.
+        </p>
+      </div>
+      <label class="switch">
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label="Students use PINs"
+          checked={!!account.studentPins}
+          onchange={(event) => setStudentPins(event.currentTarget.checked)}
+        />
+        <span aria-hidden="true"></span>
+      </label>
+    </div>
+    {#if account.studentPins && rows.length}
+      <div class="row">
+        <button class="btn btn-small" onclick={() => (showPins = !showPins)}>
+          <Icon name="key" size={14} />{showPins ? 'Hide PINs' : 'Show PINs'}
+        </button>
+        {#each account.classes as cls (cls.id)}
+          <a class="btn btn-small btn-quiet" href="/classes/{cls.id}/pins"><Icon name="printer" size={14} />PIN cards: {cls.name}</a>
+        {/each}
+      </div>
+    {/if}
+  </section>
+
   <section class="card">
     {#if rows.length}
       <!-- The card holds only the table, so the column headers sit right at its top. -->
@@ -77,6 +133,10 @@
             <tr>
               <th>Student</th>
               <th>Classes</th>
+              {#if account.studentPins}<th>PIN</th>{/if}
+              <th class="num">This week</th>
+              <th class="num">Min. this week</th>
+              <th><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
@@ -87,9 +147,28 @@
                   {#if row.student.alwaysGo}<span class="badge">Can always go</span>{:else if row.student.exempt}<span class="badge">Exempt</span>{/if}
                 </td>
                 <td>{row.classes.join(', ') || '–'}</td>
+                {#if account.studentPins}
+                  <!-- Hidden until asked for, so a student glancing at the screen doesn't see a classmate's. -->
+                  <td class="pin">{!row.student.pin ? '–' : showPins ? row.student.pin : '••••'}</td>
+                {/if}
+                <td class="num">{row.week}</td>
+                <td class="num">{row.minutesWeek}</td>
+                <td class="num">
+                  <button class="btn btn-small btn-quiet" aria-label="Edit {row.name}" onclick={() => (editing = row.student)}>
+                    <Icon name="pencil" size={14} />
+                  </button>
+                </td>
               </tr>
             {/each}
           </tbody>
+          <tfoot>
+            <tr>
+              <td colspan={account.studentPins ? 3 : 2}><strong>All students</strong></td>
+              <td class="num"><strong>{totals.week}</strong></td>
+              <td class="num"><strong>{totals.minutesWeek}</strong></td>
+              <td></td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     {:else}
@@ -97,6 +176,10 @@
     {/if}
   </section>
 </div>
+
+{#if editing}
+  <EditStudentDialog student={editing} onClose={closeEditor} />
+{/if}
 
 <style>
   .table-wrap.flush {
@@ -107,6 +190,23 @@
   /* The card's own border is the top edge here, so the headers don't draw a second one. */
   .table-wrap.flush :global(th) {
     border-top: 0;
+  }
+
+  tfoot td {
+    border-top: 1px solid var(--border);
+    background: var(--surface-sunk);
+  }
+
+  .option-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .pin {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    letter-spacing: 0.1em;
   }
 
   .merges {

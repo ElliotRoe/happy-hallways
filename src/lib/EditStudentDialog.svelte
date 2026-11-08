@@ -1,19 +1,31 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
-  import { account, classesOf, classStudents, renameStudent, setAlwaysGo, setExempt, setStudentPin } from './account.svelte';
+  import { account, classStudents, renameStudent, setAlwaysGo, setExempt, setStudentPin } from './account.svelte';
   import { pinProblem } from './pins';
   import { displayName, maxPrefix } from './roster';
-  import type { Class, ClassStudent } from './types';
+  import type { Student } from './types';
 
-  let { cls, student, onClose }: { cls: Class; student: ClassStudent; onClose: () => void } = $props();
+  /**
+   * Edits one student on the Roster: their name, PIN and whether they can
+   * always go or are exempt apply in every class; the letters shown are set
+   * per class, since they only need to tell classmates apart. See docs/adr/0015.
+   */
+  let { student, onClose }: { student: Student; onClose: () => void } = $props();
+
+  const memberships = $derived(
+    account.classes.flatMap((cls) => {
+      const member = cls.members.find((each) => each.studentId === student.id && each.status === 'current');
+      return member ? [{ cls, lastPrefix: member.lastPrefix }] : [];
+    }),
+  );
 
   // The dialog edits a copy; nothing changes until Save.
   // svelte-ignore state_referenced_locally
   let firstName = $state(student.firstName);
   // svelte-ignore state_referenced_locally
-  let lastPrefix = $state(student.lastPrefix);
-  // svelte-ignore state_referenced_locally
   let lastName = $state(student.lastName ?? '');
+  // svelte-ignore state_referenced_locally
+  let prefixes = $state(Object.fromEntries(memberships.map(({ cls, lastPrefix }) => [cls.id, lastPrefix])) as Record<string, string>);
   // svelte-ignore state_referenced_locally
   let exempt = $state(!!student.exempt);
   // svelte-ignore state_referenced_locally
@@ -22,32 +34,35 @@
   let pin = $state(student.pin ?? '');
   let error = $state('');
 
-  /** The same rule the import enforces: no two students may look alike at the kiosk. */
+  /** The same rule the import enforces: no two students may look alike at the kiosk, in any of their classes. */
   function save(event: SubmitEvent) {
     event.preventDefault();
     const first = firstName.trim();
-    const prefix = lastPrefix.trim().slice(0, maxPrefix);
     if (!first) {
       error = 'A first name is needed.';
       return;
     }
-    const name = displayName({ firstName: first, lastPrefix: prefix }).toLowerCase();
-    const clash = classStudents(cls).find(
-      (other) => other.id !== student.id && other.status === 'current' && displayName(other).toLowerCase() === name,
-    );
-    if (clash) {
-      error = `${displayName(clash)} is already in this class. Add a letter or use a nickname.`;
-      return;
+    for (const { cls } of memberships) {
+      const name = displayName({ firstName: first, lastPrefix: (prefixes[cls.id] ?? '').trim().slice(0, maxPrefix) }).toLowerCase();
+      const clash = classStudents(cls).find(
+        (other) => other.id !== student.id && other.status === 'current' && displayName(other).toLowerCase() === name,
+      );
+      if (clash) {
+        error = `${displayName(clash)} is already in ${cls.name}. Add a letter or use a nickname.`;
+        return;
+      }
     }
     const newPin = pin.trim();
-    if (cls.studentPins && newPin !== student.pin) {
+    if (account.studentPins && newPin !== student.pin) {
       // A student has one PIN in every class, so it must differ from everyone's on the Roster.
       const others = account.roster.filter((other) => other.id !== student.id).map((other) => other.pin);
       error = pinProblem(newPin, others, account.pin);
       if (error) return;
       setStudentPin(student.id, newPin);
     }
-    renameStudent(cls.id, student.id, first, prefix, lastName.trim());
+    for (const { cls } of memberships) {
+      renameStudent(cls.id, student.id, first, (prefixes[cls.id] ?? '').trim().slice(0, maxPrefix), lastName.trim());
+    }
     if (exempt !== !!student.exempt) setExempt(student.id, exempt);
     if (alwaysGo !== !!student.alwaysGo) setAlwaysGo(student.id, alwaysGo);
     onClose();
@@ -56,26 +71,22 @@
 
 <Modal onClose={onClose} labelledby="edit-title">
   <form class="dialog" onsubmit={save}>
-    <h2 id="edit-title">Edit {displayName(student)}</h2>
+    <h2 id="edit-title">Edit {student.firstName} {student.lastName ?? ''}</h2>
     <label class="field">First name or nickname <input bind:value={firstName} /></label>
     <label class="field">
       Last name
       <input bind:value={lastName} autocomplete="off" />
-      <span class="muted small">Kept only on this computer. The kiosk and the Student link never show it.</span>
+      <span class="muted small">Kept only on this computer. The kiosk never shows it.</span>
     </label>
-    <label class="field">
-      Letters of the last name to show in {cls.name} (up to {maxPrefix})
-      <input bind:value={lastPrefix} maxlength={maxPrefix} />
-    </label>
-    {#if classesOf(student.id).length > 1}
-      <p class="muted small">
-        Also in {classesOf(student.id).filter((name) => name !== cls.name).join(', ')}. Their name, PIN and whether they
-        can always go or are exempt are the same in every class.
-      </p>
-    {/if}
-    {#if cls.studentPins}
+    {#each memberships as { cls } (cls.id)}
       <label class="field">
-        PIN for the kiosk (3 to 6 digits)
+        Letters of the last name to show in {cls.name} (up to {maxPrefix})
+        <input bind:value={prefixes[cls.id]} maxlength={maxPrefix} />
+      </label>
+    {/each}
+    {#if account.studentPins}
+      <label class="field">
+        PIN (3 to 6 digits, the same in every class)
         <input bind:value={pin} inputmode="numeric" autocomplete="off" maxlength="6" />
       </label>
     {/if}

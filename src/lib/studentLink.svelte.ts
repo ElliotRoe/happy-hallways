@@ -22,10 +22,9 @@ import {
   upNext as upNextAtDoor,
   whenPassesOpen,
 } from './door.svelte';
-import { limitFor, lineOf } from './limits';
 import { createPeer, keepAlive, studentLinkPrefix } from './peer';
 import { displayName } from './roster';
-import type { LineSpot, LinkAction, OwnView, StudentLinkMessage, StudentMessage, StudentView } from './types';
+import type { LinkAction, OwnView, StudentLinkMessage, StudentMessage, StudentView } from './types';
 
 /**
  * The Student link, on the teacher's computer. Students open the link on
@@ -185,16 +184,10 @@ function welcome(connection: DataConnection) {
   });
 }
 
-/** The students on the door now, by Display Name, for a student to find themselves when claiming. */
-function namesOnTheDoor() {
-  return (activeDoorClass()?.students ?? []).map(({ id, name }) => ({ id, name }));
-}
-
 /** What a student's device asked for. Only a claimed device may act, and only as its own student. */
 function hear(connection: DataConnection, message: StudentMessage) {
   if (!viewers.has(connection)) return;
-  if (message.type === 'names') send(connection, { type: 'names', students: namesOnTheDoor() });
-  if (message.type === 'claim') claim(connection, message.studentId, message.pin);
+  if (message.type === 'claim') claim(connection, message.firstName, message.pin);
   if (message.type === 'end-claim') {
     if (findClaim(message.token)) endClaim(message.token);
     tokens.delete(connection);
@@ -212,37 +205,41 @@ function hear(connection: DataConnection, message: StudentMessage) {
 }
 
 /**
- * Only the five things a student does at the kiosk, only as themselves, and
- * only while their class is on the door. A teacher-PIN approval never comes
- * from a student's device.
+ * Only the five things a student does at the kiosk, only as themselves, only
+ * while PINs are on and their class is on the door. A teacher-PIN approval
+ * never comes from a student's device.
  */
 function allowed(studentId: string, action: LinkAction) {
-  if (!activeDoorClass()?.students.some((student) => student.id === studentId)) return false;
+  if (!account.studentPins || !activeDoorClass()?.students.some((student) => student.id === studentId)) return false;
   if (action.kind === 'undo') return account.passes.some((pass) => pass.id === action.passId && pass.studentId === studentId);
   if (action.kind === 'pass' && action.approvedBy) return false;
   return ['pass', 'back', 'join', 'leave', 'ask', 'cancel-request'].includes(action.kind) && action.studentId === studentId;
 }
 
-/** A student picks their name and types their PIN once; the device then acts as them until the Claim ends. */
-function claim(connection: DataConnection, studentId: string, pin: string) {
+/**
+ * A student types their first name and PIN once; the device then acts as them
+ * until the Claim ends. The name list never leaves this computer: someone
+ * guessing needs both a classmate's first name and their PIN. See docs/adr/0018.
+ */
+function claim(connection: DataConnection, firstName: string, pin: string) {
   const tries = pinTries.get(connection) ?? { wrong: 0, until: 0 };
   if (Date.now() < tries.until) {
     return send(connection, { type: 'claim-refused', message: 'Too many tries. Wait a minute, then try again.' });
   }
-  const student = classStudents(findClass(account.activeClass?.id)).find(
-    (each) => each.id === studentId && each.status === 'current',
-  );
-  if (!student) return send(connection, { type: 'claim-refused', message: "You can set this up during your class." });
-  if (!student.pin) {
-    return send(connection, {
-      type: 'claim-refused',
-      message: "You don't have a PIN yet. Ask your teacher to turn on PINs for your class.",
-    });
+  if (!account.studentPins) {
+    return send(connection, { type: 'claim-refused', message: "Your teacher hasn't turned on PINs yet." });
   }
-  if (pin !== student.pin) {
+  const typed = firstName.trim().toLowerCase();
+  const student = classStudents(findClass(account.activeClass?.id)).find(
+    (each) => each.status === 'current' && !!each.pin && each.pin === pin && each.firstName.toLowerCase() === typed,
+  );
+  if (!student) {
     const wrong = tries.wrong + 1;
     pinTries.set(connection, wrong >= maxPinTries ? { wrong: 0, until: Date.now() + 60_000 } : { wrong, until: 0 });
-    return send(connection, { type: 'claim-refused', message: "That PIN doesn't match. Try again." });
+    return send(connection, {
+      type: 'claim-refused',
+      message: "That name and PIN don't match anyone in the class on now. Check both and try again.",
+    });
   }
   pinTries.delete(connection);
   const token = addClaim(student.id);
@@ -258,7 +255,11 @@ function claim(connection: DataConnection, studentId: string, pin: string) {
 function ownView(studentId: string): OwnView {
   const onDoor = activeDoorClass()?.students.find((student) => student.id === studentId);
   const anyClass = account.classes.map((cls) => classStudents(cls).find((each) => each.id === studentId)).find(Boolean);
-  const view: OwnView = { studentId, name: onDoor?.name ?? (anyClass ? displayName(anyClass) : 'You'), canAct: !!onDoor };
+  const view: OwnView = {
+    studentId,
+    name: onDoor?.name ?? (anyClass ? displayName(anyClass) : 'You'),
+    canAct: !!onDoor && !!account.studentPins,
+  };
   const pass = openPassFor(studentId);
   if (pass) {
     view.out = {
@@ -334,49 +335,34 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * What students see: the class on the kiosk, whether passes are open, who is
- * out and each Line, as the door screen shows them. This computer hears all
- * of it from the kiosk, or is the kiosk. Never how long anyone has been out,
- * and nothing about how a student's passes are treated.
+ * What every device on the link sees: the class on the door, whether passes
+ * are open, and how many are out and waiting, in numbers. Never a name, never
+ * how long anyone has been out, and nothing about how a student's passes are
+ * treated. See docs/adr/0018.
  */
 export function studentView(at = Date.now()): StudentView {
   const classId = account.activeClass?.id ?? null;
   const status = passStatus(at);
   const noPass = classId ? noPassNow(classId, at) : null;
-  const out = classId ? openPasses(classId).sort((a, b) => a.outAt.localeCompare(b.outAt)) : [];
+  const out = classId ? openPasses(classId) : [];
   const waiting = account.line.filter((spot) => spot.classId === classId);
   const lines =
     account.limitMode === 'class'
-      ? [{ destination: null as string | null, spots: waiting }]
+      ? [{ destination: null as string | null, waiting: waiting.length }]
       : account.destinations.map((each) => ({
           destination: each.label as string | null,
-          spots: waiting.filter((spot) => spot.destination === each.label),
+          waiting: waiting.filter((spot) => spot.destination === each.label).length,
         }));
-
-  /** Whether a spot has opened for this student, as the door's "your turn" says. */
-  function upNext(spot: LineSpot, ahead: number) {
-    if (status === 'no-pass') return false;
-    const limited = limitFor(account, spot.destination);
-    if (!limited) return true;
-    const taken = out.filter((pass) => !pass.alwaysGo && lineOf(account, pass.destination) === limited.line).length;
-    return taken + ahead < limited.limit;
-  }
 
   return {
     className: findClass(classId)?.name ?? null,
     status,
     ...(noPass ? { whenPassesOpen: whenPassesOpen(noPass) } : {}),
-    out: out.map((pass) => ({ name: pass.studentName, destination: pass.destination })),
-    lines: lines
-      .filter((each) => each.spots.length)
-      .map((each) => ({
-        destination: each.destination,
-        spots: each.spots.map((spot, index) => ({
-          name: spot.studentName,
-          destination: spot.destination,
-          upNext: upNext(spot, index),
-        })),
-      })),
+    out: account.destinations
+      .map((each) => ({ destination: each.label, count: out.filter((pass) => pass.destination === each.label).length }))
+      .filter((each) => each.count),
+    lines: lines.filter((each) => each.waiting),
     destinations: account.destinations.map(({ label, color, icon }) => ({ label, color, icon })),
+    claimsOpen: !!account.studentPins,
   };
 }

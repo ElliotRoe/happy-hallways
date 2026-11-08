@@ -66,19 +66,20 @@
   <section class="card">
     <h2>The student link</h2>
     <p>
-      If you open the student link, students who have it can see, on their own device, what the kiosk shows the whole
-      room: who is out and where they went, who is waiting in line, and whether passes are open, using the same short
-      names. Their device connects straight to your computer, the same way the kiosk does.
+      If you open the student link, students who have it can see, on their own device, whether passes are open and how
+      many students are out or waiting at each place. Never who: students' names stay on the kiosk, in your room. Their
+      device connects straight to your computer, the same way the kiosk does.
     </p>
     <p>
-      A student can set up their own device by choosing their name and typing their PIN once. Their device then keeps
-      only a random code that means nothing anywhere else, and can sign them out and back in, line up or ask you, during
-      their class. Your computer checks everything it does. You can stop any device acting as a student at any time.
+      A student can set up their own device by typing their first name and PIN once. Their device then keeps
+      only a random code that means nothing anywhere else, shows them only their own status, and can sign them out and
+      back in, line up or ask you, during their class. Your computer checks everything it does. You can stop any device
+      acting as a student at any time.
     </p>
     <p>
-      Anyone with the link can see it while it's open, including the short names of the class, so share it only with your
-      class. You can close it at any time, or get a new link so the old one stops working. It never shows how long anyone
-      else has been out, any PIN, any full name, or anything you've set for a student.
+      Share the link only with your class. You can close it at any time, or get a new link so the old one stops working.
+      It never shows another student's name, how long anyone else has been out, any PIN, or anything you've set for a
+      student.
     </p>
   </section>
 

@@ -42,9 +42,10 @@ student-facing feature (`docs/adr/0016`).
   each class, PINs, passes, History, Claims and settings. Anyone who can use
   that browser profile can read it. The **backup file** is ordinary JSON that
   includes full names and PINs, and should be kept like any other class record.
-- **Student names on screens students can see** (the kiosk and the Student
-  link) are always the Display Name: a first name plus the fewest letters of
-  the last name needed to tell classmates apart (at most three).
+- **Student names on the kiosk** are always the Display Name: a first name
+  plus the fewest letters of the last name needed to tell classmates apart (at
+  most three). The Student link shows no student names at all, except a
+  claimed device's own student's (`docs/adr/0018`).
 - **Student PINs** (only for classes that turn them on) are short numbers made
   up by Hallway or the teacher, never school ID numbers. A student has one PIN
   across all of the teacher's classes. PINs are in the backup file, but never
@@ -56,11 +57,11 @@ student-facing feature (`docs/adr/0016`).
   signed back in, until it hands them over. It never holds full names or the
   full history.
 - **On a student's device, through the Student link:** while the teacher has
-  it open, the name of the class on the door, the Display Names and
-  destinations of students who are out or in line, and whether passes are
-  open, shown while the page is open and not saved. A device the student has
-  Claimed also keeps one random token in its local storage, and is shown that
-  student's own passes left, place in line and how long their own pass has run.
+  it open, the name of the class on the door, whether passes are open, and how
+  many students are out or waiting at each destination, shown while the page is
+  open and not saved. Never a student's name. A device the student has Claimed
+  also keeps one random token in its local storage, and is shown that student's
+  own name, passes left, place in line and how long their own pass has run.
 
 ## The connection between kiosk and laptop
 
@@ -97,13 +98,14 @@ student-facing feature (`docs/adr/0016`).
   does: introduced by the matchmaking server, then over WebRTC's encrypted
   channel, directly or through the TURN relay. The kiosk is never involved.
 - The link's address holds a long random id. **Anyone who has the link can
-  see what it shows** while it is open, including the Display Names of the
-  class on the door (a student needs them to find their own name when
-  claiming). It is meant for the class's own students, in a place only they
-  can see (such as Google Classroom). "Get a new link" makes the old one stop
+  see what it shows** while it is open: numbers only, never a name, so a
+  forwarded link gives away nothing about who is in the class
+  (`docs/adr/0018`). It is still meant for the class's own students, in a place
+  only they can see (such as Google Classroom). "Get a new link" makes the old one stop
   working at once, and "Close student link" turns everyone away.
-- **Claims** (`docs/adr/0016`): a student picks their name and types their PIN
-  once; the teacher's computer then gives that device a long random token. A
+- **Claims** (`docs/adr/0016`): a student types their first name and PIN once,
+  and only while PINs are on; no list of names is ever sent to their device.
+  The teacher's computer then gives that device a long random token. A
   device holding a valid token may act as that student only: start a pass,
   sign back in, join or leave a Line, make a Request, or undo its own pass,
   and only while that student's class is on the door. It can never do what the
