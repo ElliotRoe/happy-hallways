@@ -1,3 +1,7 @@
+---
+status: amended by ADR-0016
+---
+
 # Students can type a PIN at the kiosk
 
 Teachers told us, again and again, that students tap a classmate's name at the

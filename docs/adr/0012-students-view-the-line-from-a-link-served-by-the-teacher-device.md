@@ -1,3 +1,7 @@
+---
+status: amended by ADR-0016
+---
+
 # Students view the Line from a link, served by the teacher's computer
 
 Until now, the only place a student could see who was out, or how far along

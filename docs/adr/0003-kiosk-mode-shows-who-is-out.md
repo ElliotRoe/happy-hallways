@@ -1,3 +1,7 @@
+---
+status: amended by ADR-0016
+---
+
 # Kiosk mode shows who is currently out
 
 Kiosk mode displays each student's current state — "Out — Restroom" — so that a

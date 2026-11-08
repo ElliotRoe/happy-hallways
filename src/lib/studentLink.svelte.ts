@@ -1,9 +1,31 @@
 import type { DataConnection, Peer } from 'peerjs';
-import { account, findClass, noPassNow, onReload, onSave, openPasses, passStatus } from './account.svelte';
-import { whenPassesOpen } from './door.svelte';
+import {
+  account,
+  addClaim,
+  classStudents,
+  endClaim,
+  findClaim,
+  findClass,
+  noPassNow,
+  onReload,
+  onSave,
+  openPasses,
+  passStatus,
+} from './account.svelte';
+import {
+  activeDoorClass,
+  allowanceFor,
+  lineSpotFor,
+  openPassFor,
+  perform,
+  requestFor,
+  upNext as upNextAtDoor,
+  whenPassesOpen,
+} from './door.svelte';
 import { limitFor, lineOf } from './limits';
 import { createPeer, keepAlive, studentLinkPrefix } from './peer';
-import type { LineSpot, StudentLinkMessage, StudentView } from './types';
+import { displayName } from './roster';
+import type { LineSpot, LinkAction, OwnView, StudentLinkMessage, StudentMessage, StudentView } from './types';
 
 /**
  * The Student link, on the teacher's computer. Students open the link on
@@ -13,10 +35,15 @@ import type { LineSpot, StudentLinkMessage, StudentView } from './types';
  * does. This computer sends them what the door screen shows about the class
  * on the kiosk, and sends it again whenever it changes. Nothing is stored
  * anywhere else. See docs/adr/0012.
+ *
+ * A student who Claims their device (their name and PIN, once) can also act
+ * from it: this computer decides, exactly as for the kiosk. See docs/adr/0016.
  */
 
-/** Each student's browser holds its own connection to this computer, so there is a limit. */
-export const maxViewers = 40;
+/** Each student's browser holds its own connection to this computer, so there is a limit. Claimed devices are never turned away. */
+export const maxViewers = 60;
+/** Wrong PINs one device may try in a row before it has to wait a minute. */
+const maxPinTries = 5;
 const viewersKey = 'hallway.student-link-viewers';
 
 export const studentLink = $state({
@@ -40,8 +67,13 @@ let claimed: string | null = null;
 let retryTimer = 0;
 let clockTimer = 0;
 const viewers = new Set<DataConnection>();
+/** The Claim each claimed device holds, by its connection. */
+const tokens = new Map<DataConnection, string>();
+/** Wrong PINs tried by each device, and when it may try again. */
+const pinTries = new Map<DataConnection, { wrong: number; until: number }>();
 /** What viewers were last sent, so a save that changes nothing they see sends nothing. */
 let lastSent = '';
+const lastOwn = new Map<DataConnection, string>();
 
 function send(connection: DataConnection, message: StudentLinkMessage) {
   if (connection.open) connection.send(message);
@@ -57,6 +89,7 @@ function turnAway(connection: DataConnection, message: StudentLinkMessage) {
 function turnAwayAll(message: StudentLinkMessage) {
   for (const viewer of viewers) turnAway(viewer, message);
   viewers.clear();
+  tokens.clear();
   countViewers();
 }
 
@@ -122,18 +155,150 @@ export async function serveStudentLink() {
 }
 
 function welcome(connection: DataConnection) {
+  const token = (connection.metadata as { token?: string } | undefined)?.token;
   connection.on('open', () => {
     if (!account.studentLink?.open) return turnAway(connection, { type: 'closed' });
-    if (viewers.size >= maxViewers) return turnAway(connection, { type: 'full' });
+    const claimed = !!findClaim(token);
+    if (viewers.size >= maxViewers) {
+      if (!claimed) return turnAway(connection, { type: 'full' });
+      // A claimed device takes the place of the newest device that only looks.
+      const looking = [...viewers].reverse().find((viewer) => !tokens.has(viewer));
+      if (looking) {
+        viewers.delete(looking);
+        turnAway(looking, { type: 'full' });
+      }
+    }
     viewers.add(connection);
+    if (claimed) tokens.set(connection, token!);
+    else if (token) send(connection, { type: 'claim-ended' });
     countViewers();
     keepAlive(connection);
     send(connection, { type: 'view', view: studentView() });
+    sendOwn(connection, true);
   });
-  // Students only say "still here" for now (see StudentMessage). Asking for a pass would be handled here.
+  connection.on('data', (data) => hear(connection, data as StudentMessage));
   connection.on('close', () => {
+    tokens.delete(connection);
+    pinTries.delete(connection);
+    lastOwn.delete(connection);
     if (viewers.delete(connection)) countViewers();
   });
+}
+
+/** The students on the door now, by Display Name, for a student to find themselves when claiming. */
+function namesOnTheDoor() {
+  return (activeDoorClass()?.students ?? []).map(({ id, name }) => ({ id, name }));
+}
+
+/** What a student's device asked for. Only a claimed device may act, and only as its own student. */
+function hear(connection: DataConnection, message: StudentMessage) {
+  if (!viewers.has(connection)) return;
+  if (message.type === 'names') send(connection, { type: 'names', students: namesOnTheDoor() });
+  if (message.type === 'claim') claim(connection, message.studentId, message.pin);
+  if (message.type === 'end-claim') {
+    if (findClaim(message.token)) endClaim(message.token);
+    tokens.delete(connection);
+    send(connection, { type: 'claim-ended' });
+  }
+  if (message.type === 'act') {
+    const held = findClaim(message.token);
+    if (!held) {
+      tokens.delete(connection);
+      return send(connection, { type: 'claim-ended' });
+    }
+    if (!allowed(held.studentId, message.action)) return;
+    perform(message.action, (notice, seconds) => send(connection, { type: 'notice', notice, seconds }), 'link');
+  }
+}
+
+/**
+ * Only the five things a student does at the kiosk, only as themselves, and
+ * only while their class is on the door. A teacher-PIN approval never comes
+ * from a student's device.
+ */
+function allowed(studentId: string, action: LinkAction) {
+  if (!activeDoorClass()?.students.some((student) => student.id === studentId)) return false;
+  if (action.kind === 'undo') return account.passes.some((pass) => pass.id === action.passId && pass.studentId === studentId);
+  if (action.kind === 'pass' && action.approvedBy) return false;
+  return ['pass', 'back', 'join', 'leave', 'ask', 'cancel-request'].includes(action.kind) && action.studentId === studentId;
+}
+
+/** A student picks their name and types their PIN once; the device then acts as them until the Claim ends. */
+function claim(connection: DataConnection, studentId: string, pin: string) {
+  const tries = pinTries.get(connection) ?? { wrong: 0, until: 0 };
+  if (Date.now() < tries.until) {
+    return send(connection, { type: 'claim-refused', message: 'Too many tries. Wait a minute, then try again.' });
+  }
+  const student = classStudents(findClass(account.activeClass?.id)).find(
+    (each) => each.id === studentId && each.status === 'current',
+  );
+  if (!student) return send(connection, { type: 'claim-refused', message: "You can set this up during your class." });
+  if (!student.pin) {
+    return send(connection, {
+      type: 'claim-refused',
+      message: "You don't have a PIN yet. Ask your teacher to turn on PINs for your class.",
+    });
+  }
+  if (pin !== student.pin) {
+    const wrong = tries.wrong + 1;
+    pinTries.set(connection, wrong >= maxPinTries ? { wrong: 0, until: Date.now() + 60_000 } : { wrong, until: 0 });
+    return send(connection, { type: 'claim-refused', message: "That PIN doesn't match. Try again." });
+  }
+  pinTries.delete(connection);
+  const token = addClaim(student.id);
+  tokens.set(connection, token);
+  send(connection, { type: 'claimed', token, name: displayName(student) });
+  sendOwn(connection, true);
+}
+
+/**
+ * A claimed device's own student, as only they see it. How long their own
+ * pass has run is fine here: it's their screen, not the room's (ADR 0003).
+ */
+function ownView(studentId: string): OwnView {
+  const onDoor = activeDoorClass()?.students.find((student) => student.id === studentId);
+  const anyClass = account.classes.map((cls) => classStudents(cls).find((each) => each.id === studentId)).find(Boolean);
+  const view: OwnView = { studentId, name: onDoor?.name ?? (anyClass ? displayName(anyClass) : 'You'), canAct: !!onDoor };
+  const pass = openPassFor(studentId);
+  if (pass) {
+    view.out = {
+      destination: pass.destination,
+      secondsOut: Math.max(0, Math.round((Date.now() - new Date(pass.outAt).getTime()) / 1000)),
+      minutes: pass.minutes,
+    };
+  }
+  if (!onDoor) return view;
+  const left = allowanceFor(studentId);
+  if (left) view.passesLeft = left.text;
+  const spot = lineSpotFor(studentId);
+  if (spot) {
+    view.line = {
+      destination: spot.destination,
+      position: spot.position,
+      upNext: upNextAtDoor().some((each) => each.studentId === studentId),
+    };
+  }
+  const request = requestFor(studentId);
+  if (request) view.request = { destination: request.destination };
+  return view;
+}
+
+/** Sends a claimed device its own student's view, if it changed (or `always`), and tells a device whose Claim ended. */
+function sendOwn(connection: DataConnection, always = false) {
+  const token = tokens.get(connection);
+  if (!token) return;
+  const held = findClaim(token);
+  if (!held) {
+    tokens.delete(connection);
+    lastOwn.delete(connection);
+    return send(connection, { type: 'claim-ended' });
+  }
+  const view = ownView(held.studentId);
+  // The seconds tick on their own on the device; only a change in what's shown is worth sending.
+  const json = JSON.stringify({ ...view, out: view.out && { ...view.out, secondsOut: 0 } });
+  if (!always && json === lastOwn.get(connection)) return;
+  lastOwn.set(connection, json);
+  send(connection, { type: 'me', me: view });
 }
 
 /** Sends viewers the latest, if anything they see has changed. */
@@ -145,6 +310,7 @@ function pushView() {
       lastSent = '';
       return;
     }
+    for (const viewer of viewers) sendOwn(viewer);
     const view = studentView();
     const json = JSON.stringify(view);
     if (json === lastSent) return;

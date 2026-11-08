@@ -55,6 +55,7 @@ function blankAccount(): Account {
     replacedKiosks: [],
     networkBlocked: false,
     studentLink: null,
+    claims: [],
   };
 }
 
@@ -144,6 +145,7 @@ function upgrade(saved: SavedAccount): Account {
     saved.currentScheduleId = saved.schedules[0]?.id ?? null;
   }
   saved.manualNoPass ??= null;
+  saved.claims ??= [];
   for (const cls of saved.classes) {
     delete cls.destinations;
     delete cls.limit;
@@ -853,6 +855,8 @@ function moveActiveClass(activeClass: ActiveClass) {
     mergeInto(account.passes, openPasses(leaving).map((pass) => endUnseen(pass, 'switch')));
   }
   account.activeClass = activeClass;
+  // On shared devices, the next class's students mustn't act as this class's. See docs/adr/0016.
+  if (leaving !== activeClass.id && account.claimsEndWithClass) account.claims = [];
   if (leaving !== activeClass.id) {
     // The Line and Requests belong to the class at the door; a new class starts with none.
     account.line = [];
@@ -922,6 +926,37 @@ export function setNetworkBlocked(blocked: boolean) {
 export function setStudentLink(open: boolean, newLink = false) {
   const id = newLink || !account.studentLink ? newId() : account.studentLink.id;
   account.studentLink = { id, open };
+  save();
+}
+
+// ---------------------------------------------------------------------------
+// Claims on the Student link
+// ---------------------------------------------------------------------------
+
+export function findClaim(token: string | undefined) {
+  return token ? account.claims.find((claim) => claim.token === token) : undefined;
+}
+
+/** Makes a device act as this student. A student has at most one claimed device, so any older Claim ends. */
+export function addClaim(studentId: string) {
+  const token = newId() + newId();
+  account.claims = [...account.claims.filter((claim) => claim.studentId !== studentId), { token, studentId, claimedAt: now() }];
+  save();
+  return token;
+}
+
+export function endClaim(token: string) {
+  account.claims = account.claims.filter((claim) => claim.token !== token);
+  save();
+}
+
+export function endAllClaims() {
+  account.claims = [];
+  save();
+}
+
+export function setClaimsEndWithClass(on: boolean) {
+  account.claimsEndWithClass = on || undefined;
   save();
 }
 

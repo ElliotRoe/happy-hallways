@@ -183,6 +183,8 @@ export type Pass = {
   alwaysGo?: boolean;
   /** Where the teacher approved the student's Request: on Home, or with the PIN at the kiosk. */
   approvedBy?: 'home' | 'pin';
+  /** Started from the student's own claimed device on the Student link, not at the kiosk. See docs/adr/0016. */
+  fromLink?: boolean;
   outAt: string;
   inAt?: string;
   endedBy?: EndedBy;
@@ -261,8 +263,18 @@ export type Account = {
    * the id. See docs/adr/0012.
    */
   studentLink: { id: string; open: boolean } | null;
+  /** Students' own devices that act as them on the Student link. At most one per student. See docs/adr/0016. */
+  claims: Claim[];
+  /** For shared devices: every Claim ends when the Active Class changes, instead of lasting until ended. */
+  claimsEndWithClass?: boolean;
   lastExportedAt?: string;
 };
+
+/**
+ * A student's own device made to act as them on the Student link. The device
+ * keeps only the token, a random secret that means nothing anywhere else.
+ */
+export type Claim = { token: string; studentId: string; claimedAt: string };
 
 /** A class as the kiosk sees it: current students only, names already composed. */
 export type DoorClass = {
@@ -399,10 +411,39 @@ export type StudentLinkMessage =
   | { type: 'closed' }
   | { type: 'full' }
   | { type: 'old-link' }
-  | { type: 'ping' };
+  | { type: 'ping' }
+  /** The names to pick from when claiming a device: the class on the door, Display Names only. */
+  | { type: 'names'; students: { id: string; name: string }[] }
+  | { type: 'claimed'; token: string; name: string }
+  | { type: 'claim-refused'; message: string }
+  /** The teacher (or the student, or a new device) ended this device's Claim. */
+  | { type: 'claim-ended' }
+  | { type: 'me'; me: OwnView }
+  | { type: 'notice'; notice: DoorNoticeMessage; seconds: number };
 
 /**
- * Messages from a student's device to the teacher's computer. Only "still
- * here" for now; asking for a pass would be added here, over the same link.
+ * What a claimed device shows its own student, and nobody else: whether they
+ * can act right now, their passes left, their place in line, and how long
+ * their own pass has run. See docs/adr/0016.
  */
-export type StudentMessage = { type: 'ping' };
+export type OwnView = {
+  studentId: string;
+  name: string;
+  /** Only while their class is the Active Class. */
+  canAct: boolean;
+  passesLeft?: string;
+  out?: { destination: string; secondsOut: number; minutes: number };
+  line?: { destination: string; position: number; upNext: boolean };
+  request?: { destination: string };
+};
+
+/** What a student's device may do on the Student link. Nothing the teacher's PIN does at the kiosk. */
+export type LinkAction = Extract<DoorAction, { kind: 'pass' | 'back' | 'join' | 'leave' | 'ask' | 'cancel-request' | 'undo' }>;
+
+/** Messages from a student's device to the teacher's computer. */
+export type StudentMessage =
+  | { type: 'ping' }
+  | { type: 'names' }
+  | { type: 'claim'; studentId: string; pin: string }
+  | { type: 'act'; token: string; action: LinkAction }
+  | { type: 'end-claim'; token: string };

@@ -424,10 +424,10 @@
         <h2 id="requests-title"><Icon name="hand" size={18} />Requests</h2>
         {#if requests.length}<span class="count">{requests.length}</span>{/if}
       </div>
-      {#if account.kiosk?.kind !== 'device'}
+      {#if account.kiosk?.kind !== 'device' && !account.studentLink?.open}
         <p class="muted small">
-          Students can ask you from a paired kiosk, like a tablet or Chromebook by the door. When this computer is the
-          kiosk, let them go with your PIN there.
+          Students can ask you from a paired kiosk, like a tablet or Chromebook by the door, or from their own device on
+          the Student link. When this computer is the kiosk, let them go with your PIN there.
         </p>
       {:else}
         {#if requests.length}

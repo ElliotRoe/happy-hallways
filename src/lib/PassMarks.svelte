@@ -10,3 +10,4 @@
 {#if pass.noPassException}<span class="badge" title="Taken during No-Pass Time, with your approval">No-pass time</span>{/if}
 {#if pass.lineSkip}<span class="badge" title="Taken ahead of the line while the destination was full, with your approval">Skipped line</span>{/if}
 {#if pass.approvedBy}<span class="badge ok" title="You approved their request {pass.approvedBy === 'home' ? 'on Home' : 'with your PIN at the kiosk'}">Approved{pass.approvedBy === 'pin' ? ' by PIN' : ''}</span>{/if}
+{#if pass.fromLink}<span class="badge" title="Started from the student's own device on the Student link">Student link</span>{/if}

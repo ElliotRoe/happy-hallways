@@ -350,6 +350,8 @@ export function requestFor(studentId: string) {
  * a student's device), it goes back to that device; otherwise it shows here.
  */
 let reply: ((notice: DoorNotice, seconds: number) => void) | null = null;
+/** Set while acting for a student's own claimed device, so the pass is marked as made from the Student link. */
+let fromLink = false;
 
 let noticeTimer = 0;
 function showNotice(notice: DoorNotice, seconds: number) {
@@ -376,8 +378,13 @@ export function dismissNotice() {
  * teacher's computer calls this: for its own door screen, or for a kiosk or a
  * student's device, whose notices go back to it through `sendNotice`.
  */
-export function perform(action: DoorAction, sendNotice?: (notice: DoorNotice, seconds: number) => void) {
+export function perform(
+  action: DoorAction,
+  sendNotice?: (notice: DoorNotice, seconds: number) => void,
+  source: 'door' | 'link' = 'door',
+) {
   reply = sendNotice ?? null;
+  fromLink = source === 'link';
   try {
     if (action.kind === 'pass') startPass(action.studentId, action.destination, action.approvedBy);
     if (action.kind === 'back') endPass(action.studentId);
@@ -390,6 +397,7 @@ export function perform(action: DoorAction, sendNotice?: (notice: DoorNotice, se
     if (action.kind === 'clear-line') setLine([]);
   } finally {
     reply = null;
+    fromLink = false;
   }
 }
 
@@ -515,6 +523,7 @@ function startPass(studentId: string, destination: string, approvedBy?: 'home' |
   if (blocked) pass.noPassException = true;
   if (blocks.includes('full')) pass.lineSkip = true;
   if (approvedBy && blocks.length) pass.approvedBy = approvedBy;
+  if (fromLink) pass.fromLink = true;
   receivePasses([pass]);
   // Approved from Home, the student may be back at their seat, and someone else may be at the screen.
   if (approvedBy === 'home') return;
