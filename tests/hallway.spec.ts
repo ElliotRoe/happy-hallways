@@ -309,7 +309,7 @@ test('a first visit gets the welcome page, a tour and a checklist', async ({ pag
   await expect(page.getByRole('heading', { name: 'Set your destinations' })).toBeVisible();
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByRole('heading', { name: 'Start the kiosk' })).toBeVisible();
-  await expect(page.getByRole('note')).toContainText('Keep both screens open');
+  await expect(page.getByRole('note')).toContainText('Keep your laptop open and awake');
   await page.getByRole('button', { name: 'Add your class' }).click();
 
   await expect(page.getByText('Start with your first class')).toBeVisible();
