@@ -3,12 +3,13 @@ import { defaultDestinations, knownIcon } from './destinations';
 import { countsTowardClassLimit } from './limits';
 import type { IconName } from './icons';
 import { endUnseen, mergeInto, newId, now } from './passes';
-import { displayName, type ImportPlan } from './roster';
+import { displayName, type ImportPlan, type RosterCandidate } from './roster';
 import { blankSchedule, noPassAt, scheduledClassAt, withRulesOnPeriods } from './schedule';
 import type {
   Account,
   ActiveClass,
   Class,
+  ClassStudent,
   Destination,
   DoorSetup,
   LineSpot,
@@ -32,6 +33,7 @@ function blankAccount(): Account {
   return {
     version: 1,
     laptopPeerId: `hallway-${newId()}`,
+    roster: [],
     classes: [],
     destinations: defaultDestinations(newId),
     passes: [],
@@ -73,7 +75,11 @@ function blankAccount(): Account {
  * - "First N minutes of every class" used to be rules across a schedule; each
  *   period now has its own. See EdgeRule.
  */
-type SavedAccount = Omit<Account, 'destinations' | 'classes' | 'schedules' | 'seenPopups' | 'limitMode' | 'classLimit'> & {
+/** How a student was kept before the Roster: one entry per class. See docs/adr/0015. */
+type OlderStudent = { id: string; firstName: string; lastPrefix: string; status: 'current' | 'former'; exempt?: boolean; alwaysGo?: boolean; pin?: string };
+
+type SavedAccount = Omit<Account, 'destinations' | 'classes' | 'schedules' | 'seenPopups' | 'limitMode' | 'classLimit' | 'roster'> & {
+  roster?: Student[];
   limitMode?: Account['limitMode'];
   classLimit?: number;
   schedules?: Schedule[];
@@ -84,7 +90,9 @@ type SavedAccount = Omit<Account, 'destinations' | 'classes' | 'schedules' | 'se
   extraPassGifts?: unknown[];
   seenUpdate?: string;
   seenPopups?: Record<string, string>;
-  classes: (Class & {
+  classes: (Omit<Class, 'members'> & {
+    members?: Class['members'];
+    students?: OlderStudent[];
     destinations?: { label: string; minutes: number }[];
     limit?: number;
     noPassTimes?: { start: string; end: string }[];
@@ -141,11 +149,34 @@ function upgrade(saved: SavedAccount): Account {
     delete cls.limit;
     delete cls.noPassTimes;
   }
+  // Each class used to keep its own students. Each becomes one Roster entry, with the same id,
+  // so every pass still points at them; the same child in two classes is offered for merging.
+  if (!saved.roster) {
+    const roster: Student[] = [];
+    for (const cls of saved.classes) {
+      cls.members = (cls.students ?? []).map(({ id, firstName, lastPrefix, status, exempt, alwaysGo, pin }) => {
+        const student: Student = { id, firstName };
+        if (exempt) student.exempt = true;
+        if (alwaysGo) student.alwaysGo = true;
+        if (pin) student.pin = pin;
+        roster.push(student);
+        return { studentId: id, lastPrefix, status };
+      });
+    }
+    saved.roster = roster;
+    // A brand-new teacher, or one whose classes held nobody, has nothing to merge.
+    if (!roster.length) saved.rosterMergeSeen = true;
+  }
+  for (const cls of saved.classes) {
+    cls.members ??= [];
+    delete cls.students;
+  }
   return saved as Account;
 }
 
 /** Fields a saved account must not borrow from a blank one, so upgrade() can tell an older account by their absence. */
 const fromOlderVersions = {
+  roster: undefined,
   destinations: undefined,
   seenPopups: undefined,
   schedules: undefined,
@@ -216,7 +247,7 @@ export function createClass(name: string) {
   const cls: Class = {
     id: newId(),
     name,
-    students: [],
+    members: [],
     createdAt: now(),
   };
   account.classes.push(cls);
@@ -253,6 +284,7 @@ export function moveClass(id: string, toIndex: number) {
 export function deleteClass(id: string) {
   account.classes = account.classes.filter((cls) => cls.id !== id);
   account.passes = account.passes.filter((pass) => pass.classId !== id);
+  forgetUnusedStudents();
   for (const schedule of account.schedules) {
     for (const period of schedule.periods) {
       if (period.classId !== id) continue;
@@ -513,18 +545,72 @@ export function deleteDestination(id: string) {
 // Roster
 // ---------------------------------------------------------------------------
 
+export function findStudent(id: string | undefined) {
+  return account.roster.find((student) => student.id === id);
+}
+
+/** A class's students, each as they are in that class. */
+export function classStudents(cls: Class | undefined): ClassStudent[] {
+  return (cls?.members ?? []).flatMap((member) => {
+    const student = findStudent(member.studentId);
+    return student ? [{ ...student, lastPrefix: member.lastPrefix, status: member.status }] : [];
+  });
+}
+
+/** One student as they are in one class. */
+export function classStudent(classId: string, studentId: string) {
+  return classStudents(findClass(classId)).find((student) => student.id === studentId);
+}
+
+function memberOf(classId: string, studentId: string) {
+  return findClass(classId)?.members.find((member) => member.studentId === studentId);
+}
+
+/** The names of the classes a student is in right now. */
+export function classesOf(studentId: string) {
+  return account.classes
+    .filter((cls) => cls.members.some((member) => member.studentId === studentId && member.status === 'current'))
+    .map((cls) => cls.name);
+}
+
+/**
+ * Students already on the Roster but not in this class, for an import to
+ * recognise. All that is known of a student imported before full names were
+ * kept is the prefix shown in one of their classes.
+ */
+export function rosterCandidates(classId: string): RosterCandidate[] {
+  const cls = findClass(classId);
+  return account.roster
+    .filter((student) => !cls?.members.some((member) => member.studentId === student.id))
+    .map((student) => ({
+      student,
+      prefix: account.classes.flatMap((each) => each.members).find((member) => member.studentId === student.id)?.lastPrefix ?? '',
+      classes: classesOf(student.id),
+    }));
+}
+
 export function applyImport(classId: string, plan: ImportPlan, removeIds: string[]) {
   const cls = findClass(classId);
   if (!cls || plan.error) return;
   for (const change of plan.matched) {
-    const student = cls.students.find((each) => each.id === change.student.id);
-    if (student) student.lastPrefix = change.lastPrefix;
+    const member = cls.members.find((each) => each.studentId === change.student.id);
+    const student = findStudent(change.student.id);
+    if (member) member.lastPrefix = change.lastPrefix;
+    // Pasting a class list again fills in the full names of students imported before they were kept.
+    if (student && change.lastName && !student.lastName) student.lastName = change.lastName;
     if (student && change.pin) student.pin = change.pin;
   }
   for (const entry of plan.added) {
-    const student: Student = { id: newId(), firstName: entry.firstName, lastPrefix: entry.lastPrefix, status: 'current' };
+    let student = entry.rosterMatch ? findStudent(entry.rosterMatch.studentId) : undefined;
+    if (student) {
+      if (entry.lastName && !student.lastName) student.lastName = entry.lastName;
+    } else {
+      student = { id: newId(), firstName: entry.firstName };
+      if (entry.lastName) student.lastName = entry.lastName;
+      account.roster.push(student);
+    }
     if (entry.pin) student.pin = entry.pin;
-    cls.students.push(student);
+    cls.members.push({ studentId: student.id, lastPrefix: entry.lastPrefix, status: 'current' });
   }
   for (const id of removeIds) removeStudentFrom(cls, id);
   if (cls.studentPins) giveEveryonePins(cls);
@@ -532,14 +618,15 @@ export function applyImport(classId: string, plan: ImportPlan, removeIds: string
 }
 
 /**
- * Hands a random PIN to every current student who has none, unique in their
- * class and never the teacher's. Former students' PINs stay taken, in case
- * they're brought back.
+ * Hands a random PIN to every current student in the class who has none,
+ * unique on the Roster and never the teacher's. Former students' PINs stay
+ * taken, in case they're brought back.
  */
 function giveEveryonePins(cls: Class) {
-  const taken = new Set([account.pin, ...cls.students.flatMap((student) => (student.pin ? [student.pin] : []))]);
-  for (const student of cls.students) {
-    if (student.pin || student.status !== 'current') continue;
+  const taken = new Set([account.pin, ...account.roster.flatMap((student) => (student.pin ? [student.pin] : []))]);
+  for (const member of cls.members) {
+    const student = findStudent(member.studentId);
+    if (!student || student.pin || member.status !== 'current') continue;
     student.pin = randomPin(taken);
     taken.add(student.pin);
   }
@@ -554,41 +641,55 @@ export function setStudentPins(classId: string, on: boolean) {
   save();
 }
 
-/** The caller has already checked the PIN with pinProblem(). */
-export function setStudentPin(classId: string, studentId: string, pin: string) {
-  const student = findClass(classId)?.students.find((each) => each.id === studentId);
+/** The caller has already checked the PIN with pinProblem(). A student has one PIN in every class. */
+export function setStudentPin(studentId: string, pin: string) {
+  const student = findStudent(studentId);
   if (!student) return;
   student.pin = pin;
   save();
 }
 
-/** Whether any student in any class has this PIN, so the teacher doesn't choose it as their own. */
+/** Whether any student on the Roster has this PIN, so the teacher doesn't choose it as their own. */
 export function isStudentPin(pin: string) {
-  return account.classes.some((cls) => cls.students.some((student) => student.pin === pin));
+  return account.roster.some((student) => student.pin === pin);
 }
 
-export function renameStudent(classId: string, studentId: string, firstName: string, lastPrefix: string) {
-  const student = findClass(classId)?.students.find((each) => each.id === studentId);
-  if (!student) return;
+/** The first name and full last name belong to the student; the letters shown belong to this class. */
+export function renameStudent(classId: string, studentId: string, firstName: string, lastPrefix: string, lastName?: string) {
+  const student = findStudent(studentId);
+  const member = memberOf(classId, studentId);
+  if (!student || !member) return;
   student.firstName = firstName;
-  student.lastPrefix = lastPrefix;
+  if (lastName !== undefined) student.lastName = lastName || undefined;
+  member.lastPrefix = lastPrefix;
   save();
 }
 
 /**
- * A student with history becomes a Former Student, so the class's record stays
- * whole. One who is out right now has that pass ended with an unknown return.
+ * A student with history in this class becomes a Former Student of it, so the
+ * class's record stays whole; they stay in any other class. One who is out
+ * right now from this class has that pass ended with an unknown return.
  */
 function removeStudentFrom(cls: Class, studentId: string) {
-  const open = account.passes.filter((pass) => pass.studentId === studentId && !pass.inAt);
+  const open = account.passes.filter((pass) => pass.studentId === studentId && pass.classId === cls.id && !pass.inAt);
   mergeInto(account.passes, open.map((pass) => endUnseen(pass, 'removed')));
-  const hasHistory = account.passes.some((pass) => pass.studentId === studentId);
+  const hasHistory = account.passes.some((pass) => pass.studentId === studentId && pass.classId === cls.id);
   if (hasHistory) {
-    const student = cls.students.find((each) => each.id === studentId);
-    if (student) student.status = 'former';
+    const member = cls.members.find((each) => each.studentId === studentId);
+    if (member) member.status = 'former';
   } else {
-    cls.students = cls.students.filter((each) => each.id !== studentId);
+    cls.members = cls.members.filter((each) => each.studentId !== studentId);
   }
+  forgetUnusedStudents();
+}
+
+/** A student in no class, with no passes anywhere, leaves the Roster. */
+function forgetUnusedStudents() {
+  account.roster = account.roster.filter(
+    (student) =>
+      account.classes.some((cls) => cls.members.some((member) => member.studentId === student.id)) ||
+      account.passes.some((pass) => pass.studentId === student.id),
+  );
 }
 
 export function removeStudent(classId: string, studentId: string) {
@@ -598,16 +699,17 @@ export function removeStudent(classId: string, studentId: string) {
   save();
 }
 
-export function setExempt(classId: string, studentId: string, exempt: boolean) {
-  const student = findClass(classId)?.students.find((each) => each.id === studentId);
+/** Exempt belongs to the student, so it applies in every class they're in. */
+export function setExempt(studentId: string, exempt: boolean) {
+  const student = findStudent(studentId);
   if (!student) return;
   student.exempt = exempt || undefined;
   save();
 }
 
-/** An Always-Go Student is never held back by any rule. See docs/adr/0011. */
-export function setAlwaysGo(classId: string, studentId: string, alwaysGo: boolean) {
-  const student = findClass(classId)?.students.find((each) => each.id === studentId);
+/** An Always-Go Student is never held back by any rule, in any of their classes. See docs/adr/0011. */
+export function setAlwaysGo(studentId: string, alwaysGo: boolean) {
+  const student = findStudent(studentId);
   if (!student) return;
   student.alwaysGo = alwaysGo || undefined;
   save();
@@ -615,10 +717,43 @@ export function setAlwaysGo(classId: string, studentId: string, alwaysGo: boolea
 
 export function restoreStudent(classId: string, studentId: string) {
   const cls = findClass(classId);
-  const student = cls?.students.find((each) => each.id === studentId);
-  if (!cls || !student) return;
-  student.status = 'current';
+  const member = memberOf(classId, studentId);
+  if (!cls || !member) return;
+  member.status = 'current';
   if (cls.studentPins) giveEveryonePins(cls);
+  save();
+}
+
+/**
+ * Makes two Roster entries one child: everything of `dropId` (their classes,
+ * passes, place in a Line, Requests) becomes `keepId`'s. Only offered for
+ * students never in the same class. See docs/adr/0015.
+ */
+export function mergeStudents(keepId: string, dropId: string) {
+  const keep = findStudent(keepId);
+  const drop = findStudent(dropId);
+  if (!keep || !drop || keepId === dropId) return;
+  for (const cls of account.classes) {
+    if (cls.members.some((member) => member.studentId === keepId)) {
+      cls.members = cls.members.filter((member) => member.studentId !== dropId);
+    } else {
+      for (const member of cls.members) if (member.studentId === dropId) member.studentId = keepId;
+    }
+  }
+  for (const each of [...account.passes, ...account.line, ...account.requests, ...account.deniedRequests]) {
+    if (each.studentId === dropId) each.studentId = keepId;
+  }
+  keep.lastName ??= drop.lastName;
+  keep.pin ??= drop.pin;
+  if (drop.exempt) keep.exempt = true;
+  if (drop.alwaysGo) keep.alwaysGo = true;
+  account.roster = account.roster.filter((student) => student.id !== dropId);
+  save();
+}
+
+/** The teacher has seen the offer to merge students who may be one child. */
+export function dismissRosterMerge() {
+  account.rosterMergeSeen = true;
   save();
 }
 
@@ -678,7 +813,7 @@ export function markReturned(passId: string) {
 }
 
 /** A Correction changes the pass in place and marks it. See docs/adr/0006. */
-export function correctPass(passId: string, changes: { student?: Student; outAt?: string; inAt?: string }) {
+export function correctPass(passId: string, changes: { student?: ClassStudent; outAt?: string; inAt?: string }) {
   const pass = account.passes.find((each) => each.id === passId);
   if (!pass) return;
   if (changes.student) {
@@ -800,7 +935,7 @@ export function doorSetup(): DoorSetup {
     classes: account.classes.map((cls) => ({
       id: cls.id,
       name: cls.name,
-      students: cls.students
+      students: classStudents(cls)
         .filter((student) => student.status === 'current')
         .map((student) => ({
           id: student.id,

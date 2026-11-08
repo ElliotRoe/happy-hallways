@@ -2,7 +2,7 @@
   import { afterNavigate, goto } from '$app/navigation';
   import { page, updated } from '$app/state';
   import { onMount } from 'svelte';
-  import { account, keepToSchedule, openPasses, waitingRequests } from '#lib/account.svelte.ts';
+  import { account, dismissRosterMerge, keepToSchedule, openPasses, waitingRequests } from '#lib/account.svelte.ts';
   import { isPairedDevice, settleRequests } from '#lib/door.svelte.ts';
   import GettingStarted from '#lib/GettingStarted.svelte';
   import { askBeforeLeaving, leaveTo } from '#lib/leaving.ts';
@@ -15,6 +15,7 @@
   import Toast from '#lib/Toast.svelte';
   import Popups from '#lib/Popups.svelte';
   import { keepAwake } from '#lib/wakeLock.ts';
+  import { mergeSuggestions } from '#lib/merge.ts';
 
   let { children } = $props();
 
@@ -129,6 +130,16 @@
           <div class="update">
             <span>Happy Hallways has been updated. Refresh to get the newest version.</span>
             <button class="btn btn-small" onclick={() => leaveTo(location.href)}>Refresh</button>
+          </div>
+        </Toast>
+      {/if}
+      <!-- Once, after the Roster arrived: students who may be one child kept twice. See docs/adr/0015. -->
+      {#if !account.rosterMergeSeen && page.url.pathname !== '/roster' && mergeSuggestions(account).length}
+        <Toast icon="users">
+          <div class="update">
+            <span>Some students may be the same student in two of your classes.</span>
+            <a class="btn btn-small" href="/roster">Review</a>
+            <button class="btn btn-small btn-quiet" onclick={dismissRosterMerge}>Not now</button>
           </div>
         </Toast>
       {/if}

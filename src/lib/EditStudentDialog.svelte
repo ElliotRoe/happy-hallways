@@ -1,17 +1,19 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
-  import { account, renameStudent, setAlwaysGo, setExempt, setStudentPin } from './account.svelte';
+  import { account, classesOf, classStudents, renameStudent, setAlwaysGo, setExempt, setStudentPin } from './account.svelte';
   import { pinProblem } from './pins';
   import { displayName, maxPrefix } from './roster';
-  import type { Class, Student } from './types';
+  import type { Class, ClassStudent } from './types';
 
-  let { cls, student, onClose }: { cls: Class; student: Student; onClose: () => void } = $props();
+  let { cls, student, onClose }: { cls: Class; student: ClassStudent; onClose: () => void } = $props();
 
   // The dialog edits a copy; nothing changes until Save.
   // svelte-ignore state_referenced_locally
   let firstName = $state(student.firstName);
   // svelte-ignore state_referenced_locally
   let lastPrefix = $state(student.lastPrefix);
+  // svelte-ignore state_referenced_locally
+  let lastName = $state(student.lastName ?? '');
   // svelte-ignore state_referenced_locally
   let exempt = $state(!!student.exempt);
   // svelte-ignore state_referenced_locally
@@ -30,7 +32,7 @@
       return;
     }
     const name = displayName({ firstName: first, lastPrefix: prefix }).toLowerCase();
-    const clash = cls.students.find(
+    const clash = classStudents(cls).find(
       (other) => other.id !== student.id && other.status === 'current' && displayName(other).toLowerCase() === name,
     );
     if (clash) {
@@ -39,14 +41,15 @@
     }
     const newPin = pin.trim();
     if (cls.studentPins && newPin !== student.pin) {
-      const others = cls.students.filter((other) => other.id !== student.id).map((other) => other.pin);
+      // A student has one PIN in every class, so it must differ from everyone's on the Roster.
+      const others = account.roster.filter((other) => other.id !== student.id).map((other) => other.pin);
       error = pinProblem(newPin, others, account.pin);
       if (error) return;
-      setStudentPin(cls.id, student.id, newPin);
+      setStudentPin(student.id, newPin);
     }
-    renameStudent(cls.id, student.id, first, prefix);
-    if (exempt !== !!student.exempt) setExempt(cls.id, student.id, exempt);
-    if (alwaysGo !== !!student.alwaysGo) setAlwaysGo(cls.id, student.id, alwaysGo);
+    renameStudent(cls.id, student.id, first, prefix, lastName.trim());
+    if (exempt !== !!student.exempt) setExempt(student.id, exempt);
+    if (alwaysGo !== !!student.alwaysGo) setAlwaysGo(student.id, alwaysGo);
     onClose();
   }
 </script>
@@ -56,9 +59,20 @@
     <h2 id="edit-title">Edit {displayName(student)}</h2>
     <label class="field">First name or nickname <input bind:value={firstName} /></label>
     <label class="field">
-      Letters of the last name to show (up to {maxPrefix})
+      Last name
+      <input bind:value={lastName} autocomplete="off" />
+      <span class="muted small">Kept only on this computer. The kiosk and the Student link never show it.</span>
+    </label>
+    <label class="field">
+      Letters of the last name to show in {cls.name} (up to {maxPrefix})
       <input bind:value={lastPrefix} maxlength={maxPrefix} />
     </label>
+    {#if classesOf(student.id).length > 1}
+      <p class="muted small">
+        Also in {classesOf(student.id).filter((name) => name !== cls.name).join(', ')}. Their name, PIN and whether they
+        can always go or are exempt are the same in every class.
+      </p>
+    {/if}
     {#if cls.studentPins}
       <label class="field">
         PIN for the kiosk (3 to 6 digits)

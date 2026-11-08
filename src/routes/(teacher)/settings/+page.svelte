@@ -57,7 +57,8 @@
         <p class="eyebrow">Backup</p>
         <h2>Download a backup</h2>
         <p class="muted small">
-          One file with every class, student, pass, destination, your pass options and your kiosk pairing.
+          One file with every class, student, pass, destination, your pass options and your kiosk pairing. It holds your
+          students' full names, so keep it somewhere only you can open.
           {#if account.lastExportedAt}
             Last backed up {daysSinceExport === 0 ? 'today' : `${shortDate(account.lastExportedAt)}, ${daysSinceExport} ${daysSinceExport === 1 ? 'day' : 'days'} ago`}.
           {:else}

@@ -20,12 +20,12 @@ export function randomPin(taken: Set<string>) {
 
 /**
  * Why a PIN can't be used, or '' when it can. `others` are the PINs of the
- * rest of the class. A student must never be able to unlock the teacher's
+ * rest of the Roster. A student must never be able to unlock the teacher's
  * kiosk menu with their own PIN, so it can't match the teacher's.
  */
 export function pinProblem(pin: string, others: (string | undefined)[], teacherPin: string) {
   if (!pinShape.test(pin)) return 'A PIN is 3 to 6 digits.';
   if (teacherPin && pin === teacherPin) return 'That is your teacher PIN. Choose a different one.';
-  if (others.includes(pin)) return 'Another student in this class has that PIN.';
+  if (others.includes(pin)) return 'Another student on your Roster has that PIN.';
   return '';
 }

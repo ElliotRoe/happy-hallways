@@ -1,16 +1,17 @@
 import type { DestinationColor, DestinationIcon } from './destinations';
 
 /**
- * One child on one Class's roster. The same child taught in two Classes is two
- * unrelated Students, deliberately — see docs/adr/0002.
+ * One child on the teacher's Roster. The same child taught in two Classes is
+ * one Student, so their passes, PIN and Claim follow them. See docs/adr/0015.
  */
 export type Student = {
   id: string;
   firstName: string;
-  /** As many leading letters of the last name as it takes to be unique. Never the whole name. */
-  lastPrefix: string;
-  /** A Former Student has left the class but keeps every trip they took. */
-  status: 'current' | 'former';
+  /**
+   * The full last name, kept only on the teacher's computer (docs/adr/0017). The kiosk and the
+   * Student link only ever get the Display Name. Missing for students imported before full names were kept.
+   */
+  lastName?: string;
   /** An Exempt Student: the Pass Allowance never applies to them. They still wait for limits and No-Pass Time. */
   exempt?: boolean;
   /**
@@ -24,6 +25,18 @@ export type Student = {
    */
   pin?: string;
 };
+
+/** A Student's place in one Class. */
+export type Member = {
+  studentId: string;
+  /** As many leading letters of the last name as it takes to be unique in this class. Never the whole name. */
+  lastPrefix: string;
+  /** A Former Student has left this class but keeps every trip they took, and stays in any other class. */
+  status: 'current' | 'former';
+};
+
+/** A Student as they are in one Class: their Roster entry with their place in it. */
+export type ClassStudent = Student & Omit<Member, 'studentId'>;
 
 /**
  * A place a student may go. One list serves all the teacher's classes. A trip
@@ -56,7 +69,7 @@ export type LimitMode = 'destination' | 'class';
 
 /**
  * The Pass Allowance: how many passes each student may take in a stretch of
- * time, counted separately in each class.
+ * time, counted across every class they have with the teacher.
  */
 export type PassAllowance = {
   enabled: boolean;
@@ -135,11 +148,11 @@ export type Schedule = {
  */
 export type ManualNoPass = { classId: string | null; startedAt: string };
 
-/** A group of students a teacher sees together during one period. */
+/** A group of students from the teacher's Roster seen together during one period. */
 export type Class = {
   id: string;
   name: string;
-  students: Student[];
+  members: Member[];
   createdAt: string;
   /** Whether students in this class type their PIN at the kiosk after tapping their name. Off unless the teacher turns it on. */
   studentPins?: boolean;
@@ -208,6 +221,10 @@ export type Account = {
   version: 1;
   /** The fixed address a paired kiosk uses to find this laptop again. */
   laptopPeerId: string;
+  /** Every student the teacher teaches, each once. See docs/adr/0015. */
+  roster: Student[];
+  /** Set once the teacher has seen (or dismissed) the offer to merge students who may be one child. */
+  rosterMergeSeen?: boolean;
   classes: Class[];
   destinations: Destination[];
   passes: Pass[];

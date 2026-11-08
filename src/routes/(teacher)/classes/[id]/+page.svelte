@@ -1,11 +1,11 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { account, classPasses, findClass, removeStudent, restoreStudent } from '#lib/account.svelte.ts';
+  import { account, classPasses, classStudents, findClass, removeStudent, restoreStudent } from '#lib/account.svelte.ts';
   import { skipsAllowance, usedBy } from '#lib/allowance.ts';
   import EditStudentDialog from '#lib/EditStudentDialog.svelte';
   import Icon from '#lib/Icon.svelte';
   import { studentSummaries } from '#lib/stats.ts';
-  import type { Student } from '#lib/types.ts';
+  import type { ClassStudent } from '#lib/types.ts';
 
   /**
    * A class is its roster. How often each student goes is shown for a glance;
@@ -13,16 +13,18 @@
    */
   const cls = $derived(findClass(page.params.id ?? '')!);
   const allowance = $derived(account.passAllowance);
-  let editing = $state(null as Student | null);
+  let editing = $state(null as ClassStudent | null);
   let showPins = $state(false);
 
   const rows = $derived.by(() => {
     const passes = classPasses(cls.id);
-    return studentSummaries(cls, passes)
+    const students = classStudents(cls);
+    return studentSummaries(cls, students, passes)
       .map((summary) => ({
         ...summary,
-        student: cls.students.find((student) => student.id === summary.id)!,
-        allowanceUsed: usedBy(allowance, cls.id, summary.id, passes),
+        student: students.find((student) => student.id === summary.id)!,
+        // The Pass Allowance counts passes from every class the student has with you.
+        allowanceUsed: usedBy(allowance, summary.id, account.passes),
       }))
       .sort((a, b) => Number(a.former) - Number(b.former) || a.name.localeCompare(b.name));
   });
@@ -63,6 +65,8 @@
                 <a class="student-link" href="/history?class={cls.id}&student={row.id}" title="See {row.name}'s passes in History">
                   <strong>{row.name}</strong>
                 </a>
+                <!-- The full name stays on this computer; the kiosk and the Student link show only the name above. -->
+                {#if row.student.lastName}<span class="muted small">{row.student.firstName} {row.student.lastName}</span>{/if}
                 {#if row.former}<span class="badge">Former</span>{/if}
                 {#if row.student.alwaysGo}
                   <span class="badge" title="Never held back by the Pass Allowance, a limit, the line or no-pass time">Can always go</span>

@@ -49,13 +49,13 @@ export function passCounts(pass: Pass) {
  */
 export function usedBy(
   allowance: PassAllowance,
-  classId: string,
   studentId: string,
   passes: (Pass | CountedPass)[],
   at = new Date(),
 ) {
   const since = windowStart(allowance, at).toISOString();
-  const mine = passes.filter((pass) => pass.classId === classId && pass.studentId === studentId && pass.outAt >= since);
+  // Counted across every class the student has with this teacher. See docs/adr/0015.
+  const mine = passes.filter((pass) => pass.studentId === studentId && pass.outAt >= since);
   const notCounting = new Set(mine.filter((pass) => 'updatedAt' in pass && !passCounts(pass)).map((pass) => pass.id));
   return new Set(mine.map((pass) => pass.id).filter((id) => !notCounting.has(id))).size;
 }

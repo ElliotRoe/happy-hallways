@@ -2,9 +2,9 @@
   import Modal from './Modal.svelte';
   import { correctPass } from './account.svelte';
   import { displayName } from './roster';
-  import type { Pass, Student } from './types';
+  import type { ClassStudent, Pass } from './types';
 
-  let { pass, students, onClose }: { pass: Pass; students: Student[]; onClose: () => void } = $props();
+  let { pass, students, onClose }: { pass: Pass; students: ClassStudent[]; onClose: () => void } = $props();
 
   /** <input type="datetime-local"> speaks local time without a zone; storage is ISO. */
   function toInput(value?: string) {

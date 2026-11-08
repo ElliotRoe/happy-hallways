@@ -6,6 +6,11 @@ async function createClassWithRoster(page: Page, name: string) {
   await page.getByRole('button', { name: 'Create class' }).click();
   await page.getByLabel('One student per line').fill('Maya Chen\nMaya Carter\nJordan Ellis');
   await page.getByRole('dialog').getByRole('button', { name: 'Add students' }).click();
+  // In a second class, the same names are offered as the same students already on the Roster.
+  const sameStudents = page.getByText('Is each one the same student?');
+  if (await sameStudents.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await page.getByRole('dialog').getByRole('button', { name: 'Add students' }).click();
+  }
   await expect(page.getByText(/3 students/)).toBeVisible();
 }
 
@@ -1483,7 +1488,7 @@ test('with PINs on, students type their own PIN at the kiosk, and the teacher PI
   await page.getByRole('button', { name: 'Add students' }).click();
   await page.getByLabel('One student per line').fill('Sam Lee, 1357\nAva Diaz 1357');
   await page.getByRole('dialog').getByRole('button', { name: 'Add students' }).click();
-  await expect(page.getByRole('alert')).toContainText('Another student in this class has that PIN');
+  await expect(page.getByRole('alert')).toContainText('Another student on your Roster has that PIN');
   await page.getByLabel('One student per line').fill('Sam Lee, 1357');
   await page.getByRole('dialog').getByRole('button', { name: 'Add students' }).click();
   await expect(page.getByText(/4 students/)).toBeVisible();

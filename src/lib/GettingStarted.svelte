@@ -11,7 +11,7 @@
    * bring it back.
    */
   const auto = $derived({
-    class: account.classes.some((cls) => cls.students.some((student) => student.status === 'current')),
+    class: account.classes.some((cls) => cls.members.some((member) => member.status === 'current')),
     destinations: onboarding.visitedDestinations,
     kiosk: !!account.kiosk && !!account.activeClass,
   });

@@ -34,7 +34,7 @@
     <div class="dialog">
       <h2 id="settings-title">Delete {cls.name}?</h2>
       <p class="muted">
-        Its {cls.students.length} students and {classPasses(cls.id).length} passes will be gone for good. Download a backup first
+        Its {cls.members.length} students and {classPasses(cls.id).length} passes will be gone for good. Download a backup first
         if you might need them.
       </p>
       <div class="dialog-actions">

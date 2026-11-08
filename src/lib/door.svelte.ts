@@ -285,7 +285,7 @@ export function allowanceFor(studentId: string) {
   const allowance = current?.passAllowance;
   const student = cls?.students.find((each) => each.id === studentId);
   if (!current || !cls || !allowance?.enabled || !student || skipsAllowance(student)) return null;
-  const used = usedBy(allowance, cls.id, studentId, [...(current.countedPasses ?? []), ...allPasses()]);
+  const used = usedBy(allowance, studentId, [...(current.countedPasses ?? []), ...allPasses()]);
   const left = Math.max(0, allowance.passes - used);
   return {
     left,

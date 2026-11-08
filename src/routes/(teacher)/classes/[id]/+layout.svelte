@@ -12,7 +12,7 @@
 
   const cls = $derived(findClass(page.params.id ?? ''));
   const base = $derived(`/classes/${page.params.id}`);
-  const current = $derived(cls?.students.filter((student) => student.status === 'current').length ?? 0);
+  const current = $derived(cls?.members.filter((member) => member.status === 'current').length ?? 0);
   /** When the Current Schedule puts this class on the kiosk. */
   const schedule = $derived(currentSchedule());
   const periods = $derived(schedule ? sortedPeriods(schedule).filter((period) => period.classId === cls?.id) : []);

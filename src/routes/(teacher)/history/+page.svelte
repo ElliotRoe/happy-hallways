@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { account, findClass } from '#lib/account.svelte.ts';
+  import { account, classStudents, findClass } from '#lib/account.svelte.ts';
   import CorrectionDialog from '#lib/CorrectionDialog.svelte';
   import { download, historyToCsv } from '#lib/csv.ts';
   import DestinationIcon from '#lib/DestinationIcon.svelte';
@@ -59,7 +59,7 @@
         key: 'student',
         label: 'Student',
         options: classes.flatMap((cls) =>
-          cls.students
+          classStudents(cls)
             .map((student) => ({
               value: student.id,
               label: `${displayName(student)}${several ? ` · ${cls.name}` : ''}${student.status === 'former' ? ' (former)' : ''}`,
@@ -273,7 +273,7 @@
 {#if correcting}
   <CorrectionDialog
     pass={correcting}
-    students={findClass(correcting.classId)?.students ?? []}
+    students={classStudents(findClass(correcting.classId))}
     onClose={() => (correcting = null)}
   />
 {/if}

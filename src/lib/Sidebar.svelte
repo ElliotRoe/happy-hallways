@@ -34,6 +34,10 @@
       </div>
     {/if}
 
+    <a class="nav-link" class:active={path === '/roster'} href="/roster">
+      <Icon name="contact" />Roster
+    </a>
+
     <a class="nav-link" class:active={path === '/destinations'} href="/destinations">
       <Icon name="map-pin" />Destinations
     </a>

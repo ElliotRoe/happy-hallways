@@ -1,24 +1,42 @@
 import { pinProblem } from './pins';
-import type { Student } from './types';
+import type { ClassStudent, Student } from './types';
 
 /** A name as it arrived from a paste, before any of it is thrown away, with the student's PIN if the list had one. */
 export type ParsedName = { firstName: string; lastName: string; pin?: string };
 
+/** A student already on the Roster but not in this class, whom a pasted name may be. */
+export type RosterCandidate = {
+  student: Student;
+  /** The letters shown for them in a class they're in, all that's known of a student imported before full names were kept. */
+  prefix: string;
+  classes: string[];
+};
+
 /** What an import would do, shown to the teacher before anything is saved. */
 export type ImportPlan = {
-  added: { firstName: string; lastPrefix: string; pin?: string }[];
-  /** Students already on the roster. Their prefix may change to keep names apart, and a PIN in the list replaces theirs. */
-  matched: { student: Student; lastPrefix: string; pin?: string }[];
-  /** On the roster, but not in the pasted list. The teacher decides. */
-  missing: Student[];
+  /**
+   * New to this class. `rosterMatch` is a student already on the Roster the name
+   * seems to be; the teacher confirms before they become the same student.
+   */
+  added: {
+    firstName: string;
+    lastName: string;
+    lastPrefix: string;
+    pin?: string;
+    rosterMatch?: { studentId: string; label: string };
+  }[];
+  /** Students already in this class. Their prefix may change to keep names apart, and a PIN in the list replaces theirs. */
+  matched: { student: ClassStudent; lastPrefix: string; lastName: string; pin?: string }[];
+  /** In this class, but not in the pasted list. The teacher decides. */
+  missing: ClassStudent[];
   /** Set when two students cannot be told apart. Nothing is saved when this is set. */
   error: string;
 };
 
-/** The longest last-name prefix we will ever store. A privacy limit, not a technical one. */
+/** The longest last-name prefix the kiosk or Student link ever shows. A privacy limit, not a technical one. */
 export const maxPrefix = 3;
 
-/** "Maya C." — the only form of a student's name this app keeps. */
+/** "Maya C." — the only form of a student's name students or passers-by ever see. */
 export function displayName(student: { firstName: string; lastPrefix: string }) {
   return student.lastPrefix ? `${student.firstName} ${student.lastPrefix}.` : student.firstName;
 }
@@ -117,7 +135,7 @@ export function assignPrefixes(names: ParsedName[]) {
  * disappeared are reported rather than quietly removed — a silent replace would
  * archive a third of a class without the teacher noticing.
  */
-export function planImport(text: string, existing: Student[], teacherPin = ''): ImportPlan {
+export function planImport(text: string, existing: ClassStudent[], teacherPin = '', candidates: RosterCandidate[] = []): ImportPlan {
   const parsed = parseRoster(text);
   const current = existing.filter((student) => student.status === 'current');
 
@@ -125,11 +143,13 @@ export function planImport(text: string, existing: Student[], teacherPin = ''): 
    * A stored prefix is only as much of the last name as we kept, so "Maya C."
    * is a prefix of Carter and of Chen alike.
    */
-  const couldBe = (student: Student, name: ParsedName) =>
+  const couldBe = (student: ClassStudent, name: ParsedName) =>
     student.firstName.toLowerCase() === name.firstName.toLowerCase() &&
-    (student.lastPrefix
-      ? name.lastName.toLowerCase().startsWith(student.lastPrefix.toLowerCase())
-      : !name.lastName);
+    (student.lastName
+      ? student.lastName.toLowerCase() === name.lastName.toLowerCase()
+      : student.lastPrefix
+        ? name.lastName.toLowerCase().startsWith(student.lastPrefix.toLowerCase())
+        : !name.lastName);
 
   // Guessing here is exactly how one student's history would be quietly folded
   // into another's, so both directions of ambiguity are reported instead: one
@@ -155,7 +175,7 @@ export function planImport(text: string, existing: Student[], teacherPin = ''): 
   }
 
   const claimed = new Set<string>();
-  const pairs: { parsed: ParsedName; student?: Student }[] = [];
+  const pairs: { parsed: ParsedName; student?: ClassStudent }[] = [];
   for (const name of parsed) {
     const hit = current.find((student) => !claimed.has(student.id) && couldBe(student, name));
     if (hit) claimed.add(hit.id);
@@ -169,7 +189,7 @@ export function planImport(text: string, existing: Student[], teacherPin = ''): 
   // already stored, which is the price of never having kept the rest.
   const union: ParsedName[] = [
     ...pairs.map((pair) => pair.parsed),
-    ...missing.map((student) => ({ firstName: student.firstName, lastName: student.lastPrefix })),
+    ...missing.map((student) => ({ firstName: student.firstName, lastName: student.lastName ?? student.lastPrefix })),
   ];
   const { entries, error } = assignPrefixes(union);
 
@@ -178,15 +198,37 @@ export function planImport(text: string, existing: Student[], teacherPin = ''): 
   pairs.forEach((pair, index) => {
     const entry = entries[index];
     const pin = pair.parsed.pin ? { pin: pair.parsed.pin } : {};
-    if (pair.student) matched.push({ student: pair.student, lastPrefix: entry.lastPrefix, ...pin });
-    else added.push({ ...entry, ...pin });
+    const lastName = pair.parsed.lastName;
+    if (pair.student) matched.push({ student: pair.student, lastPrefix: entry.lastPrefix, lastName, ...pin });
+    else {
+      const match = rosterMatch(pair.parsed, candidates);
+      added.push({ ...entry, lastName, ...pin, ...(match ? { rosterMatch: match } : {}) });
+    }
   });
 
   return { added, matched, missing, error: error || ambiguity || pinsError(current, matched, added, teacherPin) };
 }
 
+/**
+ * The one student already on the Roster a pasted name seems to be: the same full
+ * name, or, for a student imported before full names were kept, the same first
+ * name and a last name starting with the letters shown for them. Two or more
+ * that fit is no match: guessing would fold one child's history into another's.
+ */
+function rosterMatch(name: ParsedName, candidates: RosterCandidate[]) {
+  const last = name.lastName.toLowerCase();
+  const fits = candidates.filter(({ student, prefix }) => {
+    if (student.firstName.toLowerCase() !== name.firstName.toLowerCase() || !last) return false;
+    return student.lastName ? student.lastName.toLowerCase() === last : !!prefix && last.startsWith(prefix.toLowerCase());
+  });
+  if (fits.length !== 1) return undefined;
+  const [{ student, prefix, classes }] = fits;
+  const shown = student.lastName ? `${student.firstName} ${student.lastName}` : displayName({ firstName: student.firstName, lastPrefix: prefix });
+  return { studentId: student.id, label: classes.length ? `${shown} · ${classes.join(', ')}` : shown };
+}
+
 /** Checks each PIN in the list against the class as it would be after the import, so no two students share one. */
-function pinsError(current: Student[], matched: ImportPlan['matched'], added: ImportPlan['added'], teacherPin: string) {
+function pinsError(current: ClassStudent[], matched: ImportPlan['matched'], added: ImportPlan['added'], teacherPin: string) {
   const incoming = new Map(matched.map((change) => [change.student.id, change.pin]));
   const after = [
     ...current.map((student) => ({ name: displayName(student), pin: incoming.get(student.id) ?? student.pin })),

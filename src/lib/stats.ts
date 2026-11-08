@@ -1,6 +1,6 @@
 import { dayKey, duration, hasRealDuration, isOverdue } from './passes';
 import { displayName } from './roster';
-import type { Class, Pass } from './types';
+import type { Class, ClassStudent, Pass } from './types';
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -61,11 +61,11 @@ export type StudentSummary = {
  * The per-student view teachers asked for most: how often each student goes,
  * and how much class time that adds up to.
  */
-export function studentSummaries(cls: Class, passes: Pass[]): StudentSummary[] {
+export function studentSummaries(cls: Class, students: ClassStudent[], passes: Pass[]): StudentSummary[] {
   const today = dayKey(new Date());
   const weekStart = startOfWeek().toISOString();
   const trips = passes.filter((pass) => pass.classId === cls.id && pass.endedBy !== 'cancelled');
-  return cls.students
+  return students
     .map((student) => {
       const mine = trips.filter((pass) => pass.studentId === student.id).sort((a, b) => b.outAt.localeCompare(a.outAt));
       const thisWeek = mine.filter((pass) => pass.outAt >= weekStart);

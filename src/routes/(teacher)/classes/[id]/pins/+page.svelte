@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { findClass } from '#lib/account.svelte.ts';
+  import { classStudents, findClass } from '#lib/account.svelte.ts';
   import Icon from '#lib/Icon.svelte';
   import { displayName } from '#lib/roster.ts';
 
@@ -10,7 +10,7 @@
    */
   const cls = $derived(findClass(page.params.id ?? '')!);
   const cards = $derived(
-    cls.students
+    classStudents(cls)
       .filter((student) => student.status === 'current' && student.pin)
       .map((student) => ({ id: student.id, name: displayName(student), pin: student.pin }))
       .sort((a, b) => a.name.localeCompare(b.name)),
