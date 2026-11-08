@@ -2,8 +2,8 @@
   import { afterNavigate, goto } from '$app/navigation';
   import { page, updated } from '$app/state';
   import { onMount } from 'svelte';
-  import { account, keepToSchedule, waitingRequests } from '#lib/account.svelte.ts';
-  import { isPairedDevice } from '#lib/door.svelte.ts';
+  import { account, keepToSchedule, openPasses, waitingRequests } from '#lib/account.svelte.ts';
+  import { isPairedDevice, settleRequests } from '#lib/door.svelte.ts';
   import GettingStarted from '#lib/GettingStarted.svelte';
   import { askBeforeLeaving, leaveTo } from '#lib/leaving.ts';
   import { refreshLink } from '#lib/link.svelte.ts';
@@ -14,6 +14,7 @@
   import SiteFooter from '#lib/SiteFooter.svelte';
   import Toast from '#lib/Toast.svelte';
   import Popups from '#lib/Popups.svelte';
+  import { keepAwake } from '#lib/wakeLock.ts';
 
   let { children } = $props();
 
@@ -49,15 +50,30 @@
   });
 
   /**
-   * On Schedule, the class on the kiosk changes as each period starts. A
-   * paired kiosk does that itself and tells this laptop; otherwise the laptop
-   * keeps to the schedule here.
+   * This computer decides everything at the door (docs/adr/0014): it keeps the
+   * door to the schedule as each period starts, and ends Requests nothing
+   * stops any more.
    */
   $effect(() => {
-    if (!ready || belongsAtDoor || account.kiosk?.kind === 'device') return;
-    keepToSchedule();
-    const timer = setInterval(keepToSchedule, 15_000);
+    if (!ready || belongsAtDoor) return;
+    const tick = () => {
+      keepToSchedule();
+      settleRequests();
+    };
+    tick();
+    const timer = setInterval(tick, 15_000);
     return () => clearInterval(timer);
+  });
+
+  /** Whether a kiosk or students' devices depend on this computer right now. */
+  const doorDependsOnThis = $derived(
+    !belongsAtDoor && (account.kiosk?.kind === 'device' || !!account.studentLink?.open),
+  );
+
+  // The door stops while this computer sleeps, so keep the screen awake while a class is on it.
+  $effect(() => {
+    keepAwake(doorDependsOnThis && !!account.activeClass?.id);
+    return () => keepAwake(false);
   });
 
   /**
@@ -86,8 +102,14 @@
   });
 </script>
 
-<!-- A paired kiosk sends its passes to this page, so closing it asks first. -->
-<svelte:window onbeforeunload={(event) => askBeforeLeaving(event, !belongsAtDoor && account.kiosk?.kind === 'device')} />
+<!-- The kiosk and the Student link stop when this page closes, so it asks first: always with a paired kiosk, and while students are out. -->
+<svelte:window
+  onbeforeunload={(event) =>
+    askBeforeLeaving(
+      event,
+      doorDependsOnThis && (account.kiosk?.kind === 'device' || openPasses(account.activeClass?.id ?? undefined).length > 0),
+    )}
+/>
 <svelte:document onvisibilitychange={refreshWhenHidden} />
 
 {#if !belongsAtDoor}

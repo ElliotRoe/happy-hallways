@@ -72,8 +72,8 @@ export type PassAllowance = {
 export type Block = 'allowance' | 'no-pass' | 'full';
 
 /**
- * A Request: a blocked student asking the teacher to let them go. The kiosk
- * keeps them, as it keeps the Line, and tells the laptop. See docs/adr/0009.
+ * A Request: a blocked student asking the teacher to let them go. The
+ * teacher's computer keeps them, as it keeps the Line. See docs/adr/0009.
  */
 export type PassRequest = {
   id: string;
@@ -213,7 +213,7 @@ export type Account = {
   passes: Pass[];
   /** Whether students may join a Line once its Pass Limit is reached. */
   lineEnabled: boolean;
-  /** Every Line as the kiosk last reported it. The kiosk is in charge of them. */
+  /** Every Line. The teacher's computer is in charge of them. */
   line: LineSpot[];
   limitMode: LimitMode;
   /** The Class Limit: how many students may be out at once, when `limitMode` is "class". Kept while it isn't. */
@@ -225,11 +225,9 @@ export type Account = {
   /** The Current Schedule, or null when the teacher has none. */
   currentScheduleId: string | null;
   manualNoPass: ManualNoPass | null;
-  /** Every waiting Request as the kiosk last reported it. The kiosk is in charge of them. */
+  /** Every waiting Request. The teacher's computer is in charge of them. */
   requests: PassRequest[];
   deniedRequests: DeniedRequest[];
-  /** Answers given in a tab that isn't the one connected to the kiosk, for that tab to pass on. */
-  relayedAnswers?: { requestId: string; approve: boolean }[];
   /** Each Popup this teacher has closed, and when. */
   seenPopups: Record<string, string>;
   /** The teacher's PIN, needed at the kiosk to change class or unpair. */
@@ -265,7 +263,11 @@ export type DoorClass = {
 /** Just enough of a past pass for the kiosk to count it against the Pass Allowance. */
 export type CountedPass = { id: string; classId: string; studentId: string; outAt: string };
 
-/** Everything the laptop hands the kiosk so it can run the door on its own. */
+/**
+ * Everything the teacher's computer shows the kiosk: who is on the door, who is
+ * out, each Line and the waiting Requests. The teacher's computer decides; the
+ * kiosk only shows this and asks. See docs/adr/0014.
+ */
 export type DoorSetup = {
   classes: DoorClass[];
   /**
@@ -294,22 +296,59 @@ export type DoorSetup = {
   passLimit?: number;
   /** Passes still open, plus today's, so both sides agree on who is out. */
   passes: Pass[];
+  /** Every Line, as the teacher's computer keeps it. */
+  line?: LineSpot[];
+  /** The waiting Requests, as the teacher's computer keeps them. */
+  requests?: PassRequest[];
+  /** Students the teacher said no to in the last minute, and how many seconds ago. */
+  denied?: { studentId: string; secondsAgo: number }[];
 };
+
+/**
+ * Something a student (or the teacher, with the PIN) did at the kiosk or on a
+ * claimed Student link device. The teacher's computer decides what happens.
+ */
+export type DoorAction =
+  | { kind: 'pass'; studentId: string; destination: string; approvedBy?: 'pin' }
+  | { kind: 'back'; studentId: string }
+  | { kind: 'join'; studentId: string; destination: string }
+  | { kind: 'leave'; studentId: string }
+  | { kind: 'ask'; studentId: string; destination: string }
+  | { kind: 'cancel-request'; studentId: string }
+  | { kind: 'undo'; passId: string }
+  | { kind: 'change-class'; classId: string | null }
+  | { kind: 'clear-line' };
+
+/** A student who signed back in while the kiosk couldn't reach the teacher's computer. */
+export type OfflineReturn = { passId: string; inAt: string };
 
 /** Messages that travel between the kiosk and the laptop. */
 export type KioskMessage =
+  | { type: 'act'; action: DoorAction }
+  | { type: 'returns'; returns: OfflineReturn[] }
+  /** Sent only by a kiosk on an older version, or one handing over before it stands down. */
   | { type: 'passes'; passes: Pass[] }
-  | { type: 'active-class'; activeClass: ActiveClass }
-  | { type: 'line'; line: LineSpot[] }
-  | { type: 'requests'; requests: PassRequest[] }
   | { type: 'ping' };
+
+/** What the screen shows a student after they did something: a pass, a refusal, a place in line. */
+export type DoorNoticeMessage = {
+  kind: 'approved' | 'denied' | 'returned';
+  eyebrow?: string;
+  title: string;
+  message: string;
+  undoPassId?: string;
+  offerLine?: { studentId: string; destination: string };
+  offerTeacher?: { studentId: string; destination: string };
+};
 
 export type LaptopMessage =
   | { type: 'paired'; laptopPeerId: string; kioskId: string; secret: string; setup: DoorSetup }
   | { type: 'setup'; setup: DoorSetup }
+  | { type: 'notice'; notice: DoorNoticeMessage; seconds: number }
+  | { type: 'returns-received'; passIds: string[] }
+  /** For a kiosk on an older version handing over passes. */
   | { type: 'ack'; passes: { id: string; updatedAt: string }[] }
   | { type: 'replaced' }
-  | { type: 'answer'; requestId: string; approve: boolean }
   | { type: 'ping' };
 
 /**

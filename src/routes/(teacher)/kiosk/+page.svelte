@@ -80,8 +80,8 @@
     <div class="notice-bar" role="note">
       <Icon name="alert-triangle" />
       {#if kiosk.kind === 'device'}
-        Keep Happy Hallways open on this laptop and on the kiosk all day. Passes reach you only while both are open;
-        until then they wait on the kiosk.
+        Keep Happy Hallways open and awake on this laptop all day, with the lid open. The kiosk asks this laptop
+        before anyone leaves, so while the laptop is closed or asleep, students can only sign back in.
       {:else}
         Keep the kiosk screen open all day. While it's closed, students can't sign out.
       {/if}
@@ -120,8 +120,8 @@
             {:else}
               <h2>A paired device</h2>
               <p class="muted small">
-                Passes arrive here as students sign out. If it loses its connection, it keeps working on its own and
-                sends its passes when it reconnects. Whether it's online right now is on Home.
+                This laptop decides who may leave; the kiosk asks it every time. If they lose touch, students can still
+                sign back in there, and those returns arrive when it reconnects. Whether it's online right now is on Home.
               </p>
             {/if}
           </div>
@@ -152,8 +152,8 @@
           <span class="icon-tile"><Icon name="tablet" /></span>
           <h2>Pair a device</h2>
           <p class="muted small">
-            A tablet or Chromebook by the door. It talks straight to this laptop and keeps working while the laptop
-            is closed.
+            A tablet or Chromebook by the door. It talks straight to this laptop, so keep this laptop open and awake
+            while class is on.
           </p>
           <div><button class="btn btn-primary" onclick={pair}>Pair a device</button></div>
         </section>
@@ -204,7 +204,7 @@
   <ConfirmDialog
     title="Stop using a kiosk?"
     message={kiosk?.kind === 'device'
-      ? "The paired device will be disconnected. If it's holding passes this laptop hasn't received yet, they'll still arrive the next time it connects."
+      ? "The paired device will be disconnected. If students signed back in there while it was offline, those returns will still arrive the next time it connects."
       : 'This computer will no longer be the kiosk.'}
     confirmLabel="Stop using it"
     onConfirm={remove}

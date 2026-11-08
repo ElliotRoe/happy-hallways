@@ -30,7 +30,8 @@
   import DestinationIcon from '#lib/DestinationIcon.svelte';
   import Icon from '#lib/Icon.svelte';
   import MenuSelect from '#lib/MenuSelect.svelte';
-  import { answerRequest, canAnswer, cancelPairing, kioskOnline, kioskState, refreshLink } from '#lib/link.svelte.ts';
+  import { cancelPairing, kioskOnline, kioskState, refreshLink } from '#lib/link.svelte.ts';
+  import { answerRequest } from '#lib/door.svelte.ts';
   import PairingDialog from '#lib/PairingDialog.svelte';
   import PassMarks from '#lib/PassMarks.svelte';
   import QuietScene, { seasons, type Season } from '#lib/QuietScene.svelte';
@@ -429,12 +430,6 @@
           kiosk, let them go with your PIN there.
         </p>
       {:else}
-        {#if !canAnswer() && requests.length}
-          <div class="notice-bar" role="status">
-            <Icon name="alert-triangle" />
-            The kiosk is offline, so it can’t hear your answer. Let students go at the kiosk with your PIN.
-          </div>
-        {/if}
         {#if requests.length}
           <ul class="requests">
             {#each requests as request (request.id)}
@@ -448,8 +443,8 @@
                   {#each request.blocks as block (block)}<span class="badge warn">{blockText[block](request)}</span>{/each}
                 </div>
                 <div class="request-answer">
-                  <button class="btn btn-small" disabled={!canAnswer()} onclick={() => answerRequest(request, false)}>Deny</button>
-                  <button class="btn btn-small btn-primary" disabled={!canAnswer()} onclick={() => answerRequest(request, true)}>
+                  <button class="btn btn-small" onclick={() => answerRequest(request, false)}>Deny</button>
+                  <button class="btn btn-small btn-primary" onclick={() => answerRequest(request, true)}>
                     <Icon name="check" size={14} />Approve
                   </button>
                 </div>

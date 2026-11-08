@@ -63,14 +63,15 @@
     const timer = setInterval(() => (clock = Date.now()), 15_000);
     return () => clearInterval(timer);
   });
-  // On Schedule, the kiosk changes class by itself as each period starts.
+  // On Schedule, the teacher's computer changes class as each period starts; on a paired kiosk, it does that itself.
   $effect(() => {
-    if (local || paired) followSchedule(clock);
+    void clock;
+    if (local) followSchedule();
   });
   // A Request ends by itself once nothing stops the student any more.
   $effect(() => {
     void clock;
-    if (paired) settleRequests();
+    if (local) settleRequests();
   });
   /** For a minute after the teacher says no, the student's name says so. */
   const deniedRecently = (studentId: string) => clock - (door.denied[studentId] ?? 0) < 60_000;
@@ -115,8 +116,8 @@
   let confirmForget = $state(false);
   /**
    * "Reconnect" on a kiosk that's offline: the same code screen a new device
-   * sees. The teacher shows a code on their laptop; this device keeps what
-   * it saved while offline. If it finds the laptop by itself meanwhile, the
+   * sees. The teacher shows a code on their laptop; this device keeps
+   * the returns it saved while offline. If it finds the laptop by itself meanwhile, the
    * screen steps aside.
    */
   let reconnecting = $state(false);
@@ -283,7 +284,7 @@
         <h1>Reconnect this kiosk</h1>
         <p class="lede">
           On the teacher's laptop, open Happy Hallways and choose <strong>Reconnect</strong> on Home. Then type the 6-digit
-          code here, or scan the QR code with this device's camera. Passes saved on this device are kept.
+          code here, or scan the QR code with this device's camera. Students who signed back in here are kept.
         </p>
       {:else}
         <h1>Make this device the kiosk</h1>
@@ -334,7 +335,7 @@
         <div class="connection">
           <span class="dot"></span>
           <span>
-            Offline{waitingCount() ? ` · ${waitingCount()} ${waitingCount() === 1 ? 'pass' : 'passes'} saved here` : ''}
+            Waiting for your teacher's computer{waitingCount() ? ` · ${waitingCount()} ${waitingCount() === 1 ? 'return' : 'returns'} saved here` : ''}
           </span>
           <button class="reconnect" onclick={reconnect}>Reconnect</button>
         </div>
@@ -590,7 +591,7 @@
           <h2>Stop being the kiosk?</h2>
           {#if waitingCount()}
             <p class="door-error">
-              {waitingCount()} {waitingCount() === 1 ? 'pass hasn’t' : 'passes haven’t'} reached the laptop yet and will be lost.
+              {waitingCount()} {waitingCount() === 1 ? 'student who signed back in hasn’t' : 'students who signed back in haven’t'} reached the teacher's computer yet, and will be lost.
             </p>
           {/if}
           <div class="choices">

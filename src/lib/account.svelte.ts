@@ -12,6 +12,7 @@ import type {
   Destination,
   DoorSetup,
   LineSpot,
+  OfflineReturn,
   Pass,
   PassAllowance,
   PassRequest,
@@ -79,6 +80,7 @@ type SavedAccount = Omit<Account, 'destinations' | 'classes' | 'schedules' | 'se
   destinations?: (Omit<Destination, 'limit'> & { limit?: number | null })[];
   passLimit?: number;
   permissions?: unknown[];
+  relayedAnswers?: unknown[];
   extraPassGifts?: unknown[];
   seenUpdate?: string;
   seenPopups?: Record<string, string>;
@@ -113,6 +115,7 @@ function upgrade(saved: SavedAccount): Account {
   saved.classLimit ??= 1;
   saved.passAllowance ??= defaultAllowance();
   delete saved.permissions;
+  delete saved.relayedAnswers;
   delete saved.extraPassGifts;
   saved.requests ??= [];
   saved.deniedRequests ??= [];
@@ -360,7 +363,7 @@ function followSchedule() {
   return true;
 }
 
-/** Called regularly on the laptop when no paired device is in charge of the door. */
+/** Called regularly on the teacher's computer, which keeps the door to the schedule. */
 export function keepToSchedule() {
   if (followSchedule()) save();
 }
@@ -483,7 +486,7 @@ export function resetPassAllowance() {
   save();
 }
 
-/** The kiosk reports its Line here; the laptop only shows it. */
+/** The teacher's computer keeps every Line. See docs/adr/0014. */
 export function setLine(line: LineSpot[]) {
   account.line = line;
   save();
@@ -623,9 +626,22 @@ export function restoreStudent(classId: string, studentId: string) {
 // Passes
 // ---------------------------------------------------------------------------
 
-/** Takes passes from the kiosk (or from this computer's own door screen). */
+/** Every pass the door starts or ends is recorded here, on the teacher's computer. */
 export function receivePasses(passes: Pass[]) {
   mergeInto(account.passes, passes);
+  save();
+}
+
+/**
+ * Students who signed back in at a kiosk that couldn't reach this computer.
+ * When the teacher also marked them back, the earlier time wins.
+ */
+export function receiveReturns(returns: OfflineReturn[]) {
+  for (const back of returns) {
+    const pass = account.passes.find((each) => each.id === back.passId);
+    if (!pass || (pass.inAt && pass.inAt <= back.inAt)) continue;
+    Object.assign(pass, { inAt: back.inAt, endedBy: 'student', updatedAt: now() });
+  }
   save();
 }
 
@@ -633,7 +649,7 @@ export function receivePasses(passes: Pass[]) {
 // Requests
 // ---------------------------------------------------------------------------
 
-/** The kiosk reports its waiting Requests here; the laptop shows and answers them. */
+/** The teacher's computer keeps every waiting Request. See docs/adr/0014. */
 export function setRequests(requests: PassRequest[]) {
   account.requests = requests;
   save();
@@ -646,24 +662,11 @@ export function waitingRequests() {
     .sort((a, b) => a.askedAt.localeCompare(b.askedAt));
 }
 
-/**
- * The teacher answered. The kiosk does what was decided; the laptop drops the
- * Request straight away rather than waiting to hear back, and keeps a "no".
- */
-export function answered(request: PassRequest, approve: boolean, relay = false) {
+/** The teacher answered: the Request ends, and a "no" is kept for History. */
+export function answered(request: PassRequest, approve: boolean) {
   account.requests = account.requests.filter((each) => each.id !== request.id);
   if (!approve) account.deniedRequests.push({ ...$state.snapshot(request), deniedAt: now() });
-  if (relay) account.relayedAnswers = [...(account.relayedAnswers ?? []), { requestId: request.id, approve }];
   save();
-}
-
-/** The tab connected to the kiosk takes the answers other tabs left for it. */
-export function takeRelayedAnswers() {
-  const answers = account.relayedAnswers ?? [];
-  if (!answers.length) return [];
-  account.relayedAnswers = [];
-  save();
-  return answers;
 }
 
 export function markReturned(passId: string) {
@@ -787,11 +790,12 @@ export function setStudentLink(open: boolean, newLink = false) {
   save();
 }
 
-/** What the kiosk needs to run the door on its own. */
+/** What the kiosk shows: the door as this computer decides it. */
 export function doorSetup(): DoorSetup {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const since = today.toISOString();
+  const minuteAgo = new Date(Date.now() - 60_000).toISOString();
   return $state.snapshot({
     classes: account.classes.map((cls) => ({
       id: cls.id,
@@ -818,6 +822,14 @@ export function doorSetup(): DoorSetup {
     pin: account.pin,
     ...forOlderKiosks(),
     passes: account.passes.filter((pass) => !pass.inAt || pass.outAt >= since),
+    line: account.line,
+    requests: account.requests,
+    denied: account.deniedRequests
+      .filter((request) => request.deniedAt >= minuteAgo)
+      .map((request) => ({
+        studentId: request.studentId,
+        secondsAgo: Math.round((Date.now() - new Date(request.deniedAt).getTime()) / 1000),
+      })),
   });
 }
 

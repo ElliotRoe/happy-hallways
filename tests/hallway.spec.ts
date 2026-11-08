@@ -392,8 +392,9 @@ test('a kiosk with a long list of destinations lets students reach every one', a
       await button.scrollIntoViewIfNeeded();
       await expect(button).toBeInViewport({ ratio: 1 });
     }
+    // This kiosk can't reach a teacher's computer, so it can't start the pass, but it says why.
     await page.getByRole('button', { name: /^Room 18/ }).click();
-    await expect(page.getByText('Pass approved', { exact: true })).toBeVisible();
+    await expect(page.getByText("Waiting for your teacher's computer").last()).toBeVisible();
   }
 });
 
@@ -813,49 +814,49 @@ test("a returning teacher sees what's changed once; a new one never does", async
   await expect(page.getByRole('heading', { name: 'Each destination has its own limit' })).toBeVisible();
 });
 
-test('a kiosk holding settings from the older version keeps its old limit', async ({ page }) => {
-  // A paired kiosk whose last word from the laptop came before per-destination limits.
+test("a kiosk that can't reach the teacher's computer lets students sign back in, and nothing else", async ({ page }) => {
+  // A paired kiosk whose teacher's computer is closed, with Jordan out.
   await page.goto('/door');
   await page.evaluate(() => {
     const classId = 'period-1';
+    const at = new Date().toISOString();
     const setup = {
       classes: [
         {
           id: classId,
           name: 'Period 1',
-          noPassTimes: [],
           students: [
             { id: 'jordan', name: 'Jordan E.' },
             { id: 'maya', name: 'Maya C.' },
           ],
         },
       ],
-      destinations: [
-        { id: 'bathroom', label: 'Bathroom', minutes: 5, color: 'blue', icon: 'toilet' },
-        { id: 'nurse', label: 'Nurse', minutes: 15, color: 'pink', icon: 'stethoscope' },
-      ],
-      passLimit: 1,
+      destinations: [{ id: 'bathroom', label: 'Bathroom', minutes: 5, color: 'blue', icon: 'toilet', limit: 1 }],
       lineEnabled: false,
-      passAllowance: { enabled: false, passes: 3, per: 'week', whenUsedUp: 'stop', since: new Date().toISOString() },
+      passAllowance: { enabled: false, passes: 3, per: 'week', whenUsedUp: 'stop', since: at },
       countedPasses: [],
-      extraPassGifts: [],
-      activeClass: { id: classId, changedAt: new Date().toISOString() },
+      activeClass: { id: classId, changedAt: at },
       pin: '2468',
-      passes: [],
+      passes: [
+        { id: 'p1', classId, studentId: 'jordan', studentName: 'Jordan E.', destination: 'Bathroom', minutes: 5, outAt: at, updatedAt: at },
+      ],
     };
-    localStorage.setItem(
-      'hallway.door',
-      JSON.stringify({ laptopPeerId: 'old-laptop', kioskId: 'k', secret: 's', setup, activeClass: setup.activeClass, passes: [], outbox: [] }),
-    );
+    localStorage.setItem('hallway.door', JSON.stringify({ laptopPeerId: 'closed-laptop', kioskId: 'k', secret: 's', setup, returns: [] }));
   });
   await page.reload();
 
-  await page.getByRole('button', { name: /Jordan E\./ }).click();
-  await page.getByRole('button', { name: /^Bathroom/ }).click();
-  await page.getByRole('button', { name: 'Done' }).click();
+  // Maya can't start a pass: only the teacher's computer decides who may leave.
   await page.getByRole('button', { name: /Maya C\./ }).click();
   await page.getByRole('button', { name: /^Bathroom/ }).click();
-  await expect(page.getByText('Please wait in class')).toBeVisible();
+  await expect(page.getByText("Waiting for your teacher's computer").last()).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  // Jordan coming back is a fact, so the kiosk records it and keeps it for later.
+  await page.getByRole('button', { name: /Jordan E\./ }).click();
+  await expect(page.getByText('Welcome back, Jordan E.')).toBeVisible();
+  await expect(page.getByText(/1 return saved here/)).toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.door')!).returns);
+  expect(saved).toHaveLength(1);
 });
 
 test('on schedule, the kiosk changes class by itself until the teacher switches by hand', async ({ page }) => {
@@ -1032,7 +1033,7 @@ test("a schedule's old first and last minutes rules move onto its periods", asyn
   await expect(page.locator('.grid .band')).toHaveCount(2);
 });
 
-test('an offline kiosk reconnects with a code, the same way it paired, keeping the passes it saved', async ({ browser }) => {
+test('an offline kiosk reconnects with a code, the same way it paired, handing over the returns it saved', async ({ browser }) => {
   const laptopContext = await browser.newContext();
   const laptop = await laptopContext.newPage();
   const tablet = await (await browser.newContext()).newPage();
@@ -1044,13 +1045,16 @@ test('an offline kiosk reconnects with a code, the same way it paired, keeping t
   await expect(laptop.getByText(/Waiting for the device/)).toBeVisible({ timeout: 20_000 });
   await tablet.goto(`/door?code=${(await laptop.locator('.pair-code').textContent())!.trim()}`);
   await expect(tablet.getByText('Connected', { exact: true })).toBeVisible({ timeout: 30_000 });
-
-  // The laptop goes away. The kiosk says so, offers to reconnect, and keeps working.
-  await laptop.close();
-  await expect(tablet.getByRole('button', { name: 'Reconnect' })).toBeVisible({ timeout: 30_000 });
   await tablet.getByRole('button', { name: /Jordan E\./ }).click();
   await tablet.getByRole('button', { name: /^Bathroom/ }).click();
   await tablet.getByRole('button', { name: 'Done' }).click();
+  await expect(tablet.getByRole('button', { name: /Jordan E\..*Out/ })).toBeVisible();
+
+  // The laptop goes away. The kiosk says so and offers to reconnect; Jordan can still sign back in.
+  await laptop.close();
+  await expect(tablet.getByRole('button', { name: 'Reconnect' })).toBeVisible({ timeout: 30_000 });
+  await tablet.getByRole('button', { name: /Jordan E\./ }).click();
+  await expect(tablet.getByText(/1 return saved here/)).toBeVisible();
 
   // Back on the laptop, Reconnect shows a code, and the tablet's own Reconnect takes it, the same way pairing does.
   // (The two may also find each other by themselves first; either way the kiosk ends up connected.)
@@ -1062,18 +1066,19 @@ test('an offline kiosk reconnects with a code, the same way it paired, keeping t
   await expect(again.getByText(/Waiting for the device|Connected!/)).toBeVisible({ timeout: 20_000 });
   const code = (await again.locator('.pair-code').textContent().catch(() => ''))?.trim() ?? '';
   if (await tablet.getByRole('button', { name: 'Reconnect' }).isVisible()) {
-    await tablet.getByRole('button', { name: 'Reconnect' }).click();
-    await expect(tablet.getByRole('heading', { name: 'Reconnect this kiosk' })).toBeVisible();
-    await tablet.getByLabel('Pairing code').fill(code);
-    await tablet.getByRole('button', { name: 'Connect', exact: true }).click();
+    // If the two find each other meanwhile, the code screen steps aside; that's fine too.
+    const steppedAside = () => undefined;
+    await tablet.getByRole('button', { name: 'Reconnect' }).click({ timeout: 5_000 }).catch(steppedAside);
+    await tablet.getByLabel('Pairing code').fill(code, { timeout: 5_000 }).catch(steppedAside);
+    await tablet.getByRole('button', { name: 'Connect', exact: true }).click({ timeout: 5_000 }).catch(steppedAside);
   }
   await expect(tablet.getByText('Connected', { exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(tablet.getByRole('button', { name: /Jordan E\..*Out/ })).toBeVisible();
+  await expect(tablet.getByRole('button', { name: /Jordan E\..*In class/ })).toBeVisible();
 
-  // The pass made while offline reached the laptop.
+  // The return made while offline reached the laptop.
   await expect(again.getByRole('dialog')).toBeHidden({ timeout: 10_000 });
   await again.getByRole('link', { name: 'History', exact: true }).click();
-  await expect(again.getByRole('row', { name: /Jordan E\./ })).toContainText('Still out', { timeout: 15_000 });
+  await expect(again.getByRole('row', { name: /Jordan E\./ })).not.toContainText('Still out', { timeout: 15_000 });
 });
 
 /** The class names in the sidebar, top to bottom. */

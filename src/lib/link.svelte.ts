@@ -1,7 +1,6 @@
 import type { DataConnection, Peer } from 'peerjs';
 import {
   account,
-  answered,
   doorSetup,
   forgetReplacedKiosk,
   markKioskSeen,
@@ -9,23 +8,23 @@ import {
   onSave,
   pairDevice,
   receivePasses,
-  setActiveClass,
-  setLine,
+  receiveReturns,
   setNetworkBlocked,
-  setRequests,
-  takeRelayedAnswers,
 } from './account.svelte';
 import { clock } from './clock.svelte';
 import { connectionReport, watchConnection } from './diagnostics';
 import { newId } from './passes';
 import { createPeer, keepAlive, pairingPrefix } from './peer';
-import type { KioskMessage, LaptopMessage, PassRequest } from './types';
+import { perform } from './door.svelte';
+import type { KioskMessage, LaptopMessage } from './types';
 
 /**
  * The laptop's end of the kiosk connection. The two devices talk directly
  * (PeerJS over WebRTC); our matchmaking server only introduces them, and pass
  * data never passes through it. A network that blocks direct connections
- * relays the encrypted data through Cloudflare's relay (see peer.ts). See docs/adr/0005.
+ * relays the encrypted data through Cloudflare's relay (see peer.ts).
+ *
+ * This computer decides everything at the door; the kiosk asks it. See docs/adr/0014.
  */
 
 const pairingMinutes = 10;
@@ -84,23 +83,6 @@ export function kioskState(): { text: string; dot: '' | 'live' | 'warn' } {
   return kioskOnline() ? { text: 'Kiosk online', dot: 'live' } : { text: 'Kiosk offline', dot: 'warn' };
 }
 
-/** A student can be answered while the kiosk is online, from any tab. */
-export function canAnswer() {
-  return kioskOnline();
-}
-
-/** Approve or deny a student's Request. The kiosk starts the pass, or tells them no. */
-export function answerRequest(request: PassRequest, approve: boolean) {
-  if (!canAnswer()) return;
-  if (link.status === 'live') {
-    send(kioskConnection, { type: 'answer', requestId: request.id, approve });
-    answered(request, approve);
-  } else {
-    // Another tab holds the connection; it passes the answer on.
-    answered(request, approve, true);
-  }
-}
-
 /** Keeps the kiosk's copy current whenever the teacher changes anything. */
 let pushTimer = 0;
 function pushSetup() {
@@ -124,14 +106,7 @@ onReload(() => {
   }
   if (peer || starting) refreshLink();
   pushSetup();
-  passOnAnswers();
 });
-
-/** Answers the teacher gave in another tab reach the kiosk through this one. */
-function passOnAnswers() {
-  if (!kioskConnection?.open) return;
-  for (const answer of takeRelayedAnswers()) send(kioskConnection, { type: 'answer', ...answer });
-}
 
 /**
  * Listens for the kiosk when there is something to listen for: the paired
@@ -215,13 +190,18 @@ function acceptCurrent(connection: DataConnection) {
   connection.on('data', (data) => {
     const message = data as KioskMessage;
     markKioskSeen();
+    if (message.type === 'act') {
+      perform(message.action, (notice, seconds) => send(connection, { type: 'notice', notice, seconds }));
+    }
+    if (message.type === 'returns') {
+      receiveReturns(message.returns);
+      send(connection, { type: 'returns-received', passIds: message.returns.map((back) => back.passId) });
+    }
+    // Passes a kiosk saved before this version, handed over once.
     if (message.type === 'passes') {
       receivePasses(message.passes);
       send(connection, { type: 'ack', passes: message.passes.map(({ id, updatedAt }) => ({ id, updatedAt })) });
     }
-    if (message.type === 'active-class') setActiveClass(message.activeClass);
-    if (message.type === 'line') setLine(message.line);
-    if (message.type === 'requests') setRequests(message.requests);
   });
   connection.on('close', () => {
     if (kioskConnection !== connection) return;
@@ -230,13 +210,18 @@ function acceptCurrent(connection: DataConnection) {
   });
 }
 
-/** A replaced kiosk hands over whatever it was still holding, then is told to stand down. */
+/** A replaced kiosk hands over the returns (or older passes) it was still holding, then is told to stand down. */
 function acceptReplaced(connection: DataConnection, kioskId: string) {
   connection.on('data', (data) => {
     const message = data as KioskMessage;
-    if (message.type !== 'passes') return;
-    receivePasses(message.passes);
-    send(connection, { type: 'ack', passes: message.passes.map(({ id, updatedAt }) => ({ id, updatedAt })) });
+    if (message.type === 'returns') {
+      receiveReturns(message.returns);
+      send(connection, { type: 'returns-received', passIds: message.returns.map((back) => back.passId) });
+    }
+    if (message.type === 'passes') {
+      receivePasses(message.passes);
+      send(connection, { type: 'ack', passes: message.passes.map(({ id, updatedAt }) => ({ id, updatedAt })) });
+    }
   });
   connection.on('open', () => {
     // Give it a moment to send its passes before telling it to stop.
@@ -289,7 +274,7 @@ export async function beginPairing() {
     link.pairing.state = 'connecting';
     const watch = watchConnection(connection.peerConnection);
     // The device found the code but the network will not let the two talk
-    // directly. Then only this computer can be the kiosk. See docs/adr/0005.
+    // directly. Then only this computer can be the kiosk.
     const giveUp = setTimeout(async () => {
       // Read the connection's details before cancelling closes it.
       link.problem = await connectionReport({
