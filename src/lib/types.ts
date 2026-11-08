@@ -153,7 +153,43 @@ export type Class = {
   id: string;
   name: string;
   members: Member[];
+  /** Attendance for this class, when the teacher turns it on. See docs/adr/0020. */
+  attendance?: AttendanceOptions;
   createdAt: string;
+};
+
+/** How a class takes Attendance. */
+export type AttendanceOptions = {
+  /** Minutes after the period starts before an Arrival is Tardy. */
+  graceMinutes: number;
+  /** Minutes after the class comes on before a student with no Arrival is Absent (or the period's end, if sooner). */
+  absentAfterMinutes: number;
+};
+
+/**
+ * One student's Attendance in one class on one school day: the teacher's own
+ * log, not the school's official attendance. See docs/adr/0020.
+ */
+export type AttendanceMark = {
+  id: string;
+  classId: string;
+  studentId: string;
+  /** "Maya C.", frozen as it was that day. */
+  studentName: string;
+  /** The school day, as "YYYY-MM-DD" in local time. */
+  day: string;
+  status: 'present' | 'tardy' | 'absent';
+  /** When they arrived, if they did. */
+  arrivedAt?: string;
+  /** How late, for a Tardy worked out from the Schedule. */
+  tardyMinutes?: number;
+  /** A Tardy the teacher excused. */
+  excused?: boolean;
+  /** Marked Absent because the teacher said they'd gone for the day. */
+  goneForDay?: boolean;
+  /** Changed by the teacher after the fact (a Correction, docs/adr/0006). */
+  corrected?: boolean;
+  updatedAt: string;
 };
 
 /** How a pass ended. Everything except "student" and "teacher" means nobody saw the return. */
@@ -267,6 +303,8 @@ export type Account = {
   studentLink: { open: boolean; room: Room | null } | null;
   /** Students' own devices that act as them in the current Room. At most one per student. See docs/adr/0016. */
   claims: Claim[];
+  /** Every Attendance mark, for classes that take Attendance. See docs/adr/0020. */
+  attendance: AttendanceMark[];
   lastExportedAt?: string;
 };
 
@@ -340,6 +378,8 @@ export type DoorSetup = {
   denied?: { studentId: string; secondsAgo: number }[];
   /** The Room's code, for the kiosk to show, while the Student link is open. */
   room?: { code: string } | null;
+  /** For the class on the door, when it takes Attendance: who has arrived today. Absent students are left off `classes`. */
+  arrivals?: { classId: string; studentIds: string[] } | null;
 };
 
 /**
@@ -355,15 +395,20 @@ export type DoorAction =
   | { kind: 'cancel-request'; studentId: string }
   | { kind: 'undo'; passId: string }
   | { kind: 'change-class'; classId: string | null }
+  | { kind: 'arrive'; studentId: string }
   | { kind: 'clear-line' };
 
 /** A student who signed back in while the kiosk couldn't reach the teacher's computer. */
 export type OfflineReturn = { passId: string; inAt: string };
 
+/** A student who arrived while the kiosk couldn't reach the teacher's computer. See docs/adr/0014 and 0020. */
+export type OfflineArrival = { classId: string; studentId: string; at: string };
+
 /** Messages that travel between the kiosk and the laptop. */
 export type KioskMessage =
   | { type: 'act'; action: DoorAction }
   | { type: 'returns'; returns: OfflineReturn[] }
+  | { type: 'arrivals'; arrivals: OfflineArrival[] }
   /** Sent only by a kiosk on an older version, or one handing over before it stands down. */
   | { type: 'passes'; passes: Pass[] }
   | { type: 'ping' };
@@ -384,6 +429,7 @@ export type LaptopMessage =
   | { type: 'setup'; setup: DoorSetup }
   | { type: 'notice'; notice: DoorNoticeMessage; seconds: number }
   | { type: 'returns-received'; passIds: string[] }
+  | { type: 'arrivals-received'; arrivals: OfflineArrival[] }
   /** For a kiosk on an older version handing over passes. */
   | { type: 'ack'; passes: { id: string; updatedAt: string }[] }
   | { type: 'replaced' }
@@ -441,6 +487,8 @@ export type OwnView = {
   canAct: boolean;
   passesLeft?: string;
   out?: { destination: string; secondsOut: number; minutes: number };
+  /** Their own Attendance today, when the class takes it. Only they see it. */
+  attendance?: 'not-yet' | 'present' | 'tardy' | 'absent';
   line?: { destination: string; position: number; upNext: boolean };
   request?: { destination: string };
 };

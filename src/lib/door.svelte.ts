@@ -5,6 +5,7 @@ import {
   doorSetup,
   keepToSchedule,
   receivePasses,
+  recordArrival,
   setActiveClass,
   setLine,
   setRequests,
@@ -23,6 +24,7 @@ import type {
   KioskMessage,
   LaptopMessage,
   LineSpot,
+  OfflineArrival,
   OfflineReturn,
   Pass,
   PassRequest,
@@ -45,6 +47,8 @@ type PairedDevice = {
   setup: DoorSetup;
   /** Students who signed back in while it couldn't reach the teacher's computer, not yet handed over. */
   returns: OfflineReturn[];
+  /** Students who arrived while it couldn't reach the teacher's computer, not yet handed over (docs/adr/0020). */
+  arrivals?: OfflineArrival[];
   /** Passes saved by an older version of the kiosk, handed over once. */
   legacyPasses?: Pass[];
 };
@@ -341,6 +345,12 @@ export function requestFor(studentId: string) {
   return requests().find((request) => request.studentId === studentId);
 }
 
+/** Whether the class on the door takes Attendance and this student hasn't arrived yet today. See docs/adr/0020. */
+export function needsArrival(studentId: string) {
+  const arrivals = setup()?.arrivals;
+  return !!arrivals && arrivals.classId === activeClassId() && !arrivals.studentIds.includes(studentId);
+}
+
 // ---------------------------------------------------------------------------
 // Notices
 // ---------------------------------------------------------------------------
@@ -394,6 +404,7 @@ export function perform(
     if (action.kind === 'cancel-request') dropRequest(action.studentId);
     if (action.kind === 'undo') undo(action.passId);
     if (action.kind === 'change-class') setActiveClass({ id: action.classId, changedAt: now() });
+    if (action.kind === 'arrive') tapIn(action.studentId);
     if (action.kind === 'clear-line') setLine([]);
   } finally {
     reply = null;
@@ -420,6 +431,15 @@ function endPass(studentId: string) {
   );
 }
 
+/** A student tapped in as they came into class. The door never says "tardy" (docs/adr/0020). */
+function tapIn(studentId: string) {
+  const cls = activeDoorClass();
+  const student = cls?.students.find((each) => each.id === studentId);
+  if (!cls || !student || !needsArrival(studentId)) return;
+  recordArrival(cls.id, studentId);
+  showNotice({ kind: 'returned', eyebrow: 'Arrived', title: `Welcome, ${student.name}`, message: 'Thanks for tapping in.' }, 4);
+}
+
 /**
  * Grants a pass if nothing stops the student, or turns them away with the
  * reason, offering the line where there is one, and a way to ask the teacher.
@@ -432,6 +452,14 @@ function startPass(studentId: string, destination: string, approvedBy?: 'home' |
   const student = cls?.students.find((each) => each.id === studentId);
   const place = destinationNamed(destination);
   if (!cls || !student || !place || openPassFor(studentId)) return;
+  // A student who hasn't arrived taps in first: at the kiosk, taking a pass records the Arrival; a claimed device never can.
+  if (needsArrival(studentId)) {
+    if (fromLink) {
+      showNotice({ kind: 'denied', eyebrow: 'Not here yet', title: 'Tap in at the kiosk first', message: 'Tap your name at the kiosk when you arrive.' }, 8);
+      return;
+    }
+    recordArrival(cls.id, studentId);
+  }
   const spot = lineSpotFor(studentId);
   const inThisLine = spot?.destination === destination;
   const offerTeacher = { studentId, destination };
@@ -661,6 +689,7 @@ function act(action: DoorAction) {
     return;
   }
   if (action.kind === 'back') signBackInOffline(action.studentId);
+  else if (action.kind === 'arrive') arriveOffline(action.studentId);
   else showNotice(waitingNotice(), 6);
 }
 
@@ -677,6 +706,7 @@ function waitingNotice(): DoorNotice {
 export const requestPass = (studentId: string, destination: string, approvedBy?: 'pin') =>
   act({ kind: 'pass', studentId, destination, approvedBy });
 export const signBackIn = (studentId: string) => act({ kind: 'back', studentId });
+export const tapToArrive = (studentId: string) => act({ kind: 'arrive', studentId });
 export const joinLine = (studentId: string, destination: string) => act({ kind: 'join', studentId, destination });
 export const leaveLine = (studentId: string) => act({ kind: 'leave', studentId });
 export const cancelRequest = (studentId: string) => act({ kind: 'cancel-request', studentId });
@@ -733,9 +763,21 @@ function signBackInOffline(studentId: string) {
   );
 }
 
-/** How many students signed back in here that the teacher's computer hasn't heard about yet. */
+/** An Arrival is a fact too, so a kiosk that can't reach the teacher's computer records it and hands it over later. */
+function arriveOffline(studentId: string) {
+  const device = door.device;
+  const arrivals = device?.setup.arrivals;
+  const student = activeDoorClass()?.students.find((each) => each.id === studentId);
+  if (!device || !arrivals || !student || !needsArrival(studentId)) return;
+  arrivals.studentIds = [...arrivals.studentIds, studentId];
+  device.arrivals = [...(device.arrivals ?? []), { classId: arrivals.classId, studentId, at: now() }];
+  saveDevice();
+  showNotice({ kind: 'returned', eyebrow: 'Arrived', title: `Welcome, ${student.name}`, message: 'Thanks for tapping in.' }, 4);
+}
+
+/** How many returns and Arrivals were recorded here that the teacher's computer hasn't heard about yet. */
 export function waitingCount() {
-  return door.device?.returns.length ?? 0;
+  return (door.device?.returns.length ?? 0) + (door.device?.arrivals?.length ?? 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -757,6 +799,10 @@ function adoptSetup(device: PairedDevice, setup: DoorSetup) {
     const pass = device.setup.passes.find((each) => each.id === back.passId);
     if (pass && !pass.inAt) Object.assign(pass, { inAt: back.inAt, endedBy: 'student', updatedAt: back.inAt });
   }
+  const arrivals = device.setup.arrivals;
+  for (const each of device.arrivals ?? []) {
+    if (arrivals?.classId === each.classId && !arrivals.studentIds.includes(each.studentId)) arrivals.studentIds.push(each.studentId);
+  }
   for (const { studentId, secondsAgo } of setup.denied ?? []) {
     door.denied[studentId] = Math.max(door.denied[studentId] ?? 0, Date.now() - secondsAgo * 1000);
   }
@@ -770,6 +816,11 @@ function receive(message: LaptopMessage) {
   if (message.type === 'notice') showNotice(message.notice, message.seconds);
   if (message.type === 'returns-received') {
     device.returns = device.returns.filter((back) => !message.passIds.includes(back.passId));
+    saveDevice();
+  }
+  if (message.type === 'arrivals-received') {
+    const received = (each: OfflineArrival) => message.arrivals.some((got) => got.studentId === each.studentId && got.at === each.at);
+    device.arrivals = (device.arrivals ?? []).filter((each) => !received(each));
     saveDevice();
   }
   if (message.type === 'ack') {
@@ -797,6 +848,7 @@ function dial() {
     door.status = 'live';
     if (device.legacyPasses?.length) send({ type: 'passes', passes: $state.snapshot(device.legacyPasses) });
     if (device.returns.length) send({ type: 'returns', returns: $state.snapshot(device.returns) });
+    if (device.arrivals?.length) send({ type: 'arrivals', arrivals: $state.snapshot(device.arrivals) });
   });
   attempt.on('data', (data) => receive(data as LaptopMessage));
   attempt.on('close', () => {
@@ -922,6 +974,7 @@ export async function pairWithCode(code: string) {
         secret: message.secret,
         setup: fromOlderLaptop(message.setup),
         returns: previous?.returns ?? [],
+        arrivals: previous?.arrivals,
         legacyPasses: previous?.legacyPasses,
       };
       saveDevice();

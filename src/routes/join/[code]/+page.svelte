@@ -265,6 +265,11 @@
               <p class="mine-status">In class</p>
             {/if}
             {#if me.passesLeft}<p class="muted-note">{me.passesLeft}</p>{/if}
+            {#if me.attendance}
+              <p class="muted-note">
+                {{ 'not-yet': 'Not tapped in yet: tap your name at the kiosk when you arrive.', present: 'Arrived', tardy: 'Arrived late (tardy)', absent: 'Marked absent' }[me.attendance]}
+              </p>
+            {/if}
           </section>
         {/if}
       {/if}

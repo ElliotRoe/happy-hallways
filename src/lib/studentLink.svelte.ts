@@ -2,7 +2,9 @@ import type { DataConnection, Peer } from 'peerjs';
 import {
   account,
   addClaim,
+  attendanceMark,
   classStudents,
+  isAbsent,
   endClaim,
   findClaim,
   findClass,
@@ -273,7 +275,13 @@ function claim(connection: DataConnection, firstName: string, pin: string) {
   }
   const typed = firstName.trim().toLowerCase();
   const student = classStudents(findClass(account.activeClass?.id)).find(
-    (each) => each.status === 'current' && !!each.pin && each.pin === pin && each.firstName.toLowerCase() === typed,
+    (each) =>
+      each.status === 'current' &&
+      !!each.pin &&
+      each.pin === pin &&
+      each.firstName.toLowerCase() === typed &&
+      // An Absent student can't set up a device (docs/adr/0020).
+      !isAbsent(account.activeClass!.id!, each.id),
   );
   if (!student) {
     const wrong = tries.wrong + 1;
@@ -311,6 +319,11 @@ function ownView(studentId: string): OwnView {
       secondsOut: Math.max(0, Math.round((Date.now() - new Date(pass.outAt).getTime()) / 1000)),
       minutes: pass.minutes,
     };
+  }
+  const classId = account.activeClass?.id;
+  if (classId && findClass(classId)?.attendance) {
+    // Their own Attendance, on their own screen only. A claimed device never records an Arrival.
+    view.attendance = attendanceMark(classId, studentId)?.status ?? 'not-yet';
   }
   if (!onDoor) return view;
   const left = allowanceFor(studentId);

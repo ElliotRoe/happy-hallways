@@ -2,6 +2,7 @@
   import { page } from '$app/state';
   import { account, classPasses, classStudents, findClass, removeStudent, restoreStudent } from '#lib/account.svelte.ts';
   import { skipsAllowance, usedBy } from '#lib/allowance.ts';
+  import AttendanceToday from '#lib/AttendanceToday.svelte';
   import Icon from '#lib/Icon.svelte';
   import { studentSummaries } from '#lib/stats.ts';
 
@@ -26,6 +27,8 @@
       .sort((a, b) => Number(a.former) - Number(b.former) || a.name.localeCompare(b.name));
   });
 </script>
+
+{#if cls.attendance}<AttendanceToday {cls} />{/if}
 
 <section class="card" data-tip="tip-roster">
   <div class="roster-head">

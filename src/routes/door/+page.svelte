@@ -2,7 +2,7 @@
   import { goto, replaceState } from '$app/navigation';
   import { page, updated } from '$app/state';
   import { onMount } from 'svelte';
-  import { setDoorLocked } from '#lib/account.svelte.ts';
+  import { keepAttendance, setDoorLocked } from '#lib/account.svelte.ts';
   import {
     activeDoorClass,
     allowanceFor,
@@ -26,6 +26,7 @@
     leaveLine,
     line,
     lineSpotFor,
+    needsArrival,
     needsPin,
     noPassNow,
     onSchedule,
@@ -38,6 +39,7 @@
     settleRequests,
     setup,
     signBackIn,
+    tapToArrive,
     undoPass,
     upNext,
     waitingCount,
@@ -72,7 +74,10 @@
   // A Request ends by itself once nothing stops the student any more.
   $effect(() => {
     void clock;
-    if (local) settleRequests();
+    if (local) {
+      settleRequests();
+      keepAttendance();
+    }
   });
   /** For a minute after the teacher says no, the student's name says so. */
   const deniedRecently = (studentId: string) => clock - (door.denied[studentId] ?? 0) < 60_000;
@@ -182,8 +187,12 @@
     if (student) actFor(student);
   }
 
-  /** Whatever tapping their name means right now: coming back, going, or checking on their line or Request. */
+  /** Whatever tapping their name means right now: arriving, coming back, going, or checking on their line or Request. */
   function actFor(student: { id: string; name: string }) {
+    if (needsArrival(student.id)) {
+      tapToArrive(student.id);
+      return;
+    }
     if (openPassFor(student.id)) {
       signBackIn(student.id);
       return;
@@ -340,7 +349,7 @@
         <div class="connection">
           <span class="dot"></span>
           <span>
-            Waiting for your teacher's computer{waitingCount() ? ` · ${waitingCount()} ${waitingCount() === 1 ? 'return' : 'returns'} saved here` : ''}
+            Waiting for your teacher's computer{waitingCount() ? ` · ${waitingCount()} ${waitingCount() === 1 ? 'tap' : 'taps'} saved here` : ''}
           </span>
           <button class="reconnect" onclick={reconnect}>Reconnect</button>
         </div>
@@ -406,6 +415,9 @@
               <span class="name-status waiting-status">
                 <DestinationIcon label={spot.destination} list={destinations} size={22} />{ordinal(spot.position)} in line
               </span>
+            {:else if needsArrival(student.id)}
+              <!-- Never "tardy" on the door's shared screen (docs/adr/0020). -->
+              <span class="name-status arrive-status">Tap when you arrive</span>
             {:else if deniedRecently(student.id)}
               <span class="name-status denied-status">Not right now</span>
             {:else}
@@ -596,7 +608,7 @@
           <h2>Stop being the kiosk?</h2>
           {#if waitingCount()}
             <p class="door-error">
-              {waitingCount()} {waitingCount() === 1 ? 'student who signed back in hasn’t' : 'students who signed back in haven’t'} reached the teacher's computer yet, and will be lost.
+              {waitingCount()} {waitingCount() === 1 ? 'tap (a return or arrival) hasn’t' : 'taps (returns or arrivals) haven’t'} reached the teacher's computer yet, and will be lost.
             </p>
           {/if}
           <div class="choices">
@@ -818,6 +830,11 @@
 
   .denied-status {
     color: var(--door-out);
+  }
+
+  .arrive-status {
+    color: #2361a6;
+    font-weight: 800;
   }
 
   /* Readable from across the room, so students can see it isn't time without asking. */

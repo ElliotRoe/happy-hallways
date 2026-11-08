@@ -39,7 +39,8 @@ student-facing feature (`docs/adr/0016`).
 
 - **On the teacher's computer:** everything, in local storage, unencrypted:
   the Roster with each student's **full name**, the letters shown for them in
-  each class, PINs, passes, History, Claims and settings. Anyone who can use
+  each class, PINs, passes, History, Attendance (the teacher's own log of
+  arrivals, tardies and absences, `docs/adr/0020`), Claims and settings. Anyone who can use
   that browser profile can read it. The **backup file** is ordinary JSON that
   includes full names and PINs, and should be kept like any other class record.
 - **Student names on the kiosk** are always the Display Name: a first name
@@ -54,7 +55,8 @@ student-facing feature (`docs/adr/0016`).
   Display Names, destinations and limits, the teacher's PIN, the student PINs
   of classes that ask for them, open and today's passes, the Line and Requests.
   While it can't reach the teacher's computer it also keeps the times students
-  signed back in, until it hands them over. It never holds full names or the
+  signed back in or arrived, until it hands them over. Absent students are left
+  off it. It never holds full names or the
   full history.
 - **On a student's device, through the Student link:** while the teacher has
   it open, the name of the class on the door, whether passes are open, and how

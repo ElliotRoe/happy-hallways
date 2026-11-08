@@ -857,7 +857,7 @@ test("a kiosk that can't reach the teacher's computer lets students sign back in
   // Jordan coming back is a fact, so the kiosk records it and keeps it for later.
   await page.getByRole('button', { name: /Jordan E\./ }).click();
   await expect(page.getByText('Welcome back, Jordan E.')).toBeVisible();
-  await expect(page.getByText(/1 return saved here/)).toBeVisible();
+  await expect(page.getByText(/1 tap saved here/)).toBeVisible();
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.door')!).returns);
   expect(saved).toHaveLength(1);
 });
@@ -1057,7 +1057,7 @@ test('an offline kiosk reconnects with a code, the same way it paired, handing o
   await laptop.close();
   await expect(tablet.getByRole('button', { name: 'Reconnect' })).toBeVisible({ timeout: 30_000 });
   await tablet.getByRole('button', { name: /Jordan E\./ }).click();
-  await expect(tablet.getByText(/1 return saved here/)).toBeVisible();
+  await expect(tablet.getByText(/1 tap saved here/)).toBeVisible();
 
   // Back on the laptop, Reconnect shows a code, and the tablet's own Reconnect takes it, the same way pairing does.
   // (The two may also find each other by themselves first; either way the kiosk ends up connected.)

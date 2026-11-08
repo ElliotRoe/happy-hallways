@@ -4,15 +4,19 @@ import { countsTowardClassLimit } from './limits';
 import type { IconName } from './icons';
 import { endUnseen, mergeInto, newId, now } from './passes';
 import { displayName, type ImportPlan, type RosterCandidate } from './roster';
-import { blankSchedule, noPassAt, scheduledClassAt, withRulesOnPeriods } from './schedule';
+import { blankSchedule, clockOf, noPassAt, scheduledClassAt, withRulesOnPeriods } from './schedule';
+import { arrivalStatus, periodFor, today } from './attendance';
 import type {
   Account,
   ActiveClass,
+  AttendanceMark,
+  AttendanceOptions,
   Class,
   ClassStudent,
   Destination,
   DoorSetup,
   LineSpot,
+  OfflineArrival,
   OfflineReturn,
   Pass,
   PassAllowance,
@@ -57,6 +61,7 @@ function blankAccount(): Account {
     networkBlocked: false,
     studentLink: null,
     claims: [],
+    attendance: [],
   };
 }
 
@@ -149,6 +154,7 @@ function upgrade(saved: SavedAccount): Account {
   }
   saved.manualNoPass ??= null;
   saved.claims ??= [];
+  saved.attendance ??= [];
   // The Student link used to be one lasting link; it's now a Room per class period (docs/adr/0019).
   const link = saved.studentLink as { open: boolean; room?: Room | null } | null;
   saved.studentLink = link ? { open: link.open, room: link.room ?? null } : null;
@@ -775,6 +781,202 @@ export function dismissRosterMerge() {
 }
 
 // ---------------------------------------------------------------------------
+// Attendance (docs/adr/0020)
+// ---------------------------------------------------------------------------
+
+/** Turns Attendance on (with these options) or off for one class. */
+export function setAttendance(classId: string, options: AttendanceOptions | null) {
+  const cls = findClass(classId);
+  if (!cls) return;
+  if (options) cls.attendance = options;
+  else delete cls.attendance;
+  save();
+}
+
+export function attendanceMark(classId: string, studentId: string, day = today()) {
+  return account.attendance.find((mark) => mark.classId === classId && mark.studentId === studentId && mark.day === day);
+}
+
+/** Today's marks for a class. */
+export function attendanceToday(classId: string) {
+  const day = today();
+  return account.attendance.filter((mark) => mark.classId === classId && mark.day === day);
+}
+
+/** Whether a student is Absent from a class today, and so hidden from the door. */
+export function isAbsent(classId: string, studentId: string) {
+  return attendanceMark(classId, studentId)?.status === 'absent';
+}
+
+function newMark(classId: string, studentId: string, day: string): AttendanceMark {
+  const student = classStudent(classId, studentId);
+  const mark: AttendanceMark = {
+    id: newId(),
+    classId,
+    studentId,
+    studentName: student ? displayName(student) : '',
+    day,
+    status: 'absent',
+    updatedAt: now(),
+  };
+  account.attendance.push(mark);
+  return mark;
+}
+
+/** When a class's Absent clock started today: its period's start on the Schedule, or when it came on the door. */
+function absentClockStart(classId: string, at: number) {
+  const period = account.activeClass?.onSchedule ? periodFor(currentSchedule(), classId, at) : null;
+  if (period) return { start: new Date(new Date(at).setHours(...(period.start.split(':').map(Number) as [number, number]), 0, 0)).getTime(), period };
+  return { start: new Date(account.activeClass?.changedAt ?? at).getTime(), period: null };
+}
+
+/**
+ * An Arrival: at the kiosk, or by the teacher. It counts as Tardy after the
+ * period's start plus grace; a student already marked Absent who arrives is
+ * Tardy. Only the first Arrival counts. Returns whether anything changed; the
+ * caller saves.
+ */
+function arrive(classId: string, studentId: string, at: string, byTeacher: boolean) {
+  const cls = findClass(classId);
+  if (!cls?.attendance) return false;
+  const existing = attendanceMark(classId, studentId, today(at));
+  if (existing?.arrivedAt) return false;
+  const counted = arrivalStatus(currentSchedule(), classId, cls.attendance, at);
+  const mark = existing ?? newMark(classId, studentId, today(at));
+  mark.arrivedAt = at;
+  if (existing?.status === 'absent') {
+    // Arriving after being marked Absent is always Tardy.
+    const { start } = absentClockStart(classId, new Date(at).getTime());
+    mark.status = 'tardy';
+    mark.tardyMinutes = counted.status === 'tardy' ? counted.tardyMinutes : Math.max(0, Math.round((new Date(at).getTime() - start) / 60_000));
+    delete mark.goneForDay;
+  } else {
+    mark.status = counted.status;
+    if (counted.status === 'tardy') mark.tardyMinutes = counted.tardyMinutes;
+  }
+  if (byTeacher && existing) mark.corrected = true;
+  mark.updatedAt = now();
+  return true;
+}
+
+/** A student tapped in at the kiosk (or a disconnected kiosk handed over their tap). */
+export function recordArrival(classId: string, studentId: string, at = now()) {
+  if (arrive(classId, studentId, at, false)) save();
+}
+
+export function receiveArrivals(arrivals: OfflineArrival[]) {
+  let changed = false;
+  for (const each of arrivals) changed = arrive(each.classId, each.studentId, each.at, false) || changed;
+  if (changed) save();
+}
+
+/**
+ * The teacher marks a student by hand: arrived now, Tardy, Absent, or back to
+ * nothing yet. Changing a mark that was already there is a Correction.
+ */
+export function markAttendance(classId: string, studentId: string, status: 'present' | 'tardy' | 'absent' | 'clear') {
+  const day = today();
+  const existing = attendanceMark(classId, studentId, day);
+  if (status === 'clear') {
+    account.attendance = account.attendance.filter((mark) => mark !== existing);
+    save();
+    return;
+  }
+  // Arriving after being marked Absent is a late Arrival, so Tardy.
+  if (status === 'present' && existing?.status === 'absent' && arrive(classId, studentId, now(), true)) {
+    save();
+    return;
+  }
+  if (!existing && status !== 'absent' && arrive(classId, studentId, now(), true)) {
+    const mark = attendanceMark(classId, studentId, day)!;
+    if (status === 'tardy' && mark.status !== 'tardy') mark.status = 'tardy';
+    if (status === 'present' && mark.status !== 'present') {
+      mark.status = 'present';
+      delete mark.tardyMinutes;
+    }
+    save();
+    return;
+  }
+  const mark = existing ?? newMark(classId, studentId, day);
+  mark.status = status;
+  if (status === 'present') delete mark.tardyMinutes;
+  if (status !== 'tardy') delete mark.excused;
+  if (status === 'absent') delete mark.arrivedAt;
+  if (status !== 'absent') mark.arrivedAt ??= now();
+  if (existing) mark.corrected = true;
+  mark.updatedAt = now();
+  save();
+}
+
+export function setExcused(markId: string, excused: boolean) {
+  const mark = account.attendance.find((each) => each.id === markId);
+  if (!mark || mark.status !== 'tardy') return;
+  mark.excused = excused || undefined;
+  mark.corrected = true;
+  mark.updatedAt = now();
+  save();
+}
+
+/**
+ * "Gone for the day": Absent in the teacher's classes still to come today, and
+ * in the class on now if they haven't arrived in it. With a Schedule, "still to
+ * come" means periods that haven't started; without one, every other class
+ * taking Attendance that has no mark for them yet.
+ */
+export function goneForTheDay(studentId: string) {
+  const day = today();
+  const clock = clockOf(Date.now());
+  const schedule = currentSchedule();
+  for (const cls of account.classes) {
+    if (!cls.attendance || !cls.members.some((member) => member.studentId === studentId && member.status === 'current')) continue;
+    const existing = attendanceMark(cls.id, studentId, day);
+    if (existing?.arrivedAt) continue;
+    const isOn = account.activeClass?.id === cls.id;
+    const later = schedule
+      ? schedule.periods.some((period) => period.classId === cls.id && period.start > clock)
+      : !existing;
+    if (!isOn && !later) continue;
+    const mark = existing ?? newMark(cls.id, studentId, day);
+    mark.status = 'absent';
+    mark.goneForDay = true;
+    mark.updatedAt = now();
+  }
+  save();
+}
+
+/**
+ * Marks Absent every current student of the class on the door who hasn't
+ * arrived, once its minutes have passed or its period has ended, whichever is
+ * first. Only for a class that came on the door today (so a cancelled period
+ * never marks a whole class absent). Returns whether anything changed.
+ */
+function markAbsences(at = Date.now(), leaving = false) {
+  const active = account.activeClass;
+  const cls = findClass(active?.id);
+  if (!active?.id || !cls?.attendance || today(active.changedAt) !== today(at)) {
+    // A class on the door since before today came on today when the day began, if it's on the Schedule today.
+    if (!(active?.id && cls?.attendance && active.onSchedule && periodFor(currentSchedule(), active.id, at))) return false;
+  }
+  const { start, period } = absentClockStart(cls!.id, at);
+  const due = start + cls!.attendance!.absentAfterMinutes * 60_000;
+  const ended = period ? at >= new Date(new Date(at).setHours(...(period.end.split(':').map(Number) as [number, number]), 0, 0)).getTime() : false;
+  if (!(at >= due || ended || (leaving && (active!.onSchedule || at >= due)))) return false;
+  const day = today(at);
+  let changed = false;
+  for (const member of cls!.members) {
+    if (member.status !== 'current' || attendanceMark(cls!.id, member.studentId, day)) continue;
+    newMark(cls!.id, member.studentId, day);
+    changed = true;
+  }
+  return changed;
+}
+
+/** Called regularly on the teacher's computer, which decides Attendance like everything else at the door. */
+export function keepAttendance() {
+  if (markAbsences()) save();
+}
+
+// ---------------------------------------------------------------------------
 // Passes
 // ---------------------------------------------------------------------------
 
@@ -866,6 +1068,8 @@ export function setActiveClass(activeClass: ActiveClass) {
 
 function moveActiveClass(activeClass: ActiveClass) {
   const leaving = account.activeClass?.id;
+  // The class ending: anyone who never arrived is Absent (docs/adr/0020).
+  if (leaving && leaving !== activeClass.id) markAbsences(Date.now(), true);
   if (leaving && leaving !== activeClass.id) {
     mergeInto(account.passes, openPasses(leaving).map((pass) => endUnseen(pass, 'switch')));
   }
@@ -1005,6 +1209,13 @@ export function endAllClaims() {
   save();
 }
 
+/** Who has arrived today in the class on the door, if it takes Attendance. */
+function arrivalsOnTheDoor() {
+  const cls = findClass(account.activeClass?.id);
+  if (!cls?.attendance) return null;
+  return { classId: cls.id, studentIds: attendanceToday(cls.id).filter((mark) => mark.arrivedAt).map((mark) => mark.studentId) };
+}
+
 /** What the kiosk shows: the door as this computer decides it. */
 export function doorSetup(): DoorSetup {
   const today = new Date();
@@ -1015,8 +1226,9 @@ export function doorSetup(): DoorSetup {
     classes: account.classes.map((cls) => ({
       id: cls.id,
       name: cls.name,
+      // An Absent student is hidden from the door (docs/adr/0020).
       students: classStudents(cls)
-        .filter((student) => student.status === 'current')
+        .filter((student) => student.status === 'current' && !isAbsent(cls.id, student.id))
         .map((student) => ({
           id: student.id,
           name: displayName(student),
@@ -1040,6 +1252,7 @@ export function doorSetup(): DoorSetup {
     line: account.line,
     requests: account.requests,
     room: account.studentLink?.open && account.studentLink.room ? { code: account.studentLink.room.code } : null,
+    arrivals: arrivalsOnTheDoor(),
     denied: account.deniedRequests
       .filter((request) => request.deniedAt >= minuteAgo)
       .map((request) => ({

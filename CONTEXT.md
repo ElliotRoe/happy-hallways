@@ -196,23 +196,29 @@ network, the teacher's own computer is the kiosk.
 _Avoid_: Linking, connecting, logging in
 
 **Student link**:
-A link the teacher posts, say in Google Classroom, so students can use their own
-Chromebook or phone the way they use the kiosk. Anyone with the link sees how
+How students use their own Chromebook or phone the way they use the kiosk, by
+joining the class's Room with its code or QR code. Anyone in the Room sees how
 the door stands in numbers: whether passes are open, and how many are out and
 waiting at each destination, never who. A device holding a Claim can also act as
 that student, and shows that student their own status: start a pass, sign back
 in, join or leave a Line, and make a Request. Students' devices connect to the
 teacher's computer, not the kiosk, so the link works only while Happy Hallways
-is open there, and only while the teacher has it open. Getting a new link stops
-the old one working.
+is open there, and only while the teacher has it open.
 _Avoid_: Share link, public view, student view, student mode
+
+**Room**:
+The Student link for one class period, joined with a short code (or its QR code)
+shown on the kiosk and the teacher's screen. Each time the Active Class changes
+there is a new Room with a new code, and the old code stops working, so students
+join again in every class. Between classes there is no Room.
+_Avoid_: Lobby, session, game, link (for the code)
 
 **Claim**:
 A student's own device made to act as that student on the Student link, by
-typing their first name and PIN once. It needs PINs to be on. A student has at most one claimed
-device. The teacher can end a Claim at any time, and the device goes back to
-only looking. For shared devices, the teacher can have every Claim end when the
-Active Class changes instead of lasting until ended. Nothing about the Claim is kept anywhere but the teacher's
+typing their first name and PIN after joining the Room. It needs PINs to be on.
+A student has at most one claimed device. A Claim lasts until its Room ends,
+when the class changes; the teacher can end one sooner, and the device goes back
+to only looking. Nothing about the Claim is kept anywhere but the teacher's
 computer and the student's device.
 _Avoid_: Login, account, sign-in, session, pairing (that makes a kiosk)
 
@@ -267,19 +273,28 @@ _Avoid_: Archived student, deleted student, inactive student
 **Attendance**:
 The teacher's own record of whether each student came to each class on each
 day: present, Tardy or Absent. It is one teacher's notes, not the school's
-official attendance.
+official attendance. Each class turns it on or off; it is off unless the
+teacher turns it on.
 _Avoid_: Roll call, register, official attendance
 
 **Arrival**:
-A student tapping in when they come into class, recorded with the time.
+A student tapping in when they come into class, recorded with the time. It
+happens only at the kiosk or by the teacher, never from a claimed device.
 _Avoid_: Check-in, sign in, clock in, sign back in (that ends a pass)
 
 **Tardy**:
-A student whose Arrival came after their class began.
+A student whose Arrival came after their period began on the Schedule, plus
+any grace minutes the teacher allows. Without a Schedule, only the teacher
+marks a student Tardy. The teacher can mark a Tardy as excused.
 _Avoid_: Late (Overdue is a pass that runs over time), tardy pass
 
 **Absent**:
-A student who did not come to a class that day.
+A student who did not come to a class that day. A student with no Arrival
+becomes Absent once the teacher's set minutes have passed or the period ends,
+but only in a class that became the Active Class that day.
+An Absent student is hidden from the door; a later Arrival makes them Tardy.
+"Gone for the day" makes a student Absent in the teacher's remaining classes
+that day.
 _Avoid_: Missing, away, out (that is a student on a pass)
 
 **Backup**:

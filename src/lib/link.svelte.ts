@@ -7,6 +7,7 @@ import {
   onReload,
   onSave,
   pairDevice,
+  receiveArrivals,
   receivePasses,
   receiveReturns,
   setNetworkBlocked,
@@ -197,6 +198,10 @@ function acceptCurrent(connection: DataConnection) {
       receiveReturns(message.returns);
       send(connection, { type: 'returns-received', passIds: message.returns.map((back) => back.passId) });
     }
+    if (message.type === 'arrivals') {
+      receiveArrivals(message.arrivals);
+      send(connection, { type: 'arrivals-received', arrivals: message.arrivals });
+    }
     // Passes a kiosk saved before this version, handed over once.
     if (message.type === 'passes') {
       receivePasses(message.passes);
@@ -217,6 +222,10 @@ function acceptReplaced(connection: DataConnection, kioskId: string) {
     if (message.type === 'returns') {
       receiveReturns(message.returns);
       send(connection, { type: 'returns-received', passIds: message.returns.map((back) => back.passId) });
+    }
+    if (message.type === 'arrivals') {
+      receiveArrivals(message.arrivals);
+      send(connection, { type: 'arrivals-received', arrivals: message.arrivals });
     }
     if (message.type === 'passes') {
       receivePasses(message.passes);

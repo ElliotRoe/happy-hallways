@@ -2,7 +2,7 @@
   import { afterNavigate, goto } from '$app/navigation';
   import { page, updated } from '$app/state';
   import { onMount } from 'svelte';
-  import { account, dismissRosterMerge, keepToSchedule, openPasses, waitingRequests } from '#lib/account.svelte.ts';
+  import { account, dismissRosterMerge, keepAttendance, keepToSchedule, openPasses, waitingRequests } from '#lib/account.svelte.ts';
   import { isPairedDevice, settleRequests } from '#lib/door.svelte.ts';
   import GettingStarted from '#lib/GettingStarted.svelte';
   import { askBeforeLeaving, leaveTo } from '#lib/leaving.ts';
@@ -52,14 +52,15 @@
 
   /**
    * This computer decides everything at the door (docs/adr/0014): it keeps the
-   * door to the schedule as each period starts, and ends Requests nothing
-   * stops any more.
+   * door to the schedule as each period starts, ends Requests nothing stops
+   * any more, and marks Absent students who never arrived (docs/adr/0020).
    */
   $effect(() => {
     if (!ready || belongsAtDoor) return;
     const tick = () => {
       keepToSchedule();
       settleRequests();
+      keepAttendance();
     };
     tick();
     const timer = setInterval(tick, 15_000);

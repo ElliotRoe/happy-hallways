@@ -20,6 +20,8 @@ peer-to-peer, through the TURN relay where a network forbids that.
 - One exception: a student coming back is a fact, not a decision. A
   disconnected kiosk or claimed device records the time they came back and hands
   it over on reconnecting, so a dropped connection never leaves a pass running.
+  An Arrival (ADR 0020) is the same kind of fact, and a disconnected kiosk
+  records it the same way.
 - To soften the cost, the teacher's computer keeps its screen awake while a
   class is Active, warns before its tab closes while students are out, and setup
   says plainly that the laptop must stay open.

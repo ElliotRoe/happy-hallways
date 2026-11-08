@@ -37,6 +37,11 @@
       letters of the last name. Your backup file holds full names, so keep it somewhere only you can open.
     </p>
     <p>
+      If you take attendance in a class, Happy Hallways also keeps when each student arrived, and whether they were tardy or
+      absent, on your computer only. It's your own log for your class, not your school's official attendance, which stays
+      in your school's own system.
+    </p>
+    <p>
       If you turn on PINs for a class, each student also has a short PIN to type at the kiosk, or to set up their own
       device on the student link. Happy Hallways makes these up, or you can choose them. Never use real student ID
       numbers.

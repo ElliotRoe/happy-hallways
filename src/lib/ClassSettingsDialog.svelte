@@ -1,7 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import Modal from './Modal.svelte';
-  import { classPasses, deleteClass, updateClass } from './account.svelte';
+  import { classPasses, deleteClass, setAttendance, updateClass } from './account.svelte';
+  import { defaultAttendance } from './attendance';
   import Icon from './Icon.svelte';
   import type { Class } from './types';
 
@@ -10,12 +11,28 @@
   // The dialog edits a copy; nothing changes until Save.
   // svelte-ignore state_referenced_locally
   let name = $state(cls.name);
+  // svelte-ignore state_referenced_locally
+  let takesAttendance = $state(!!cls.attendance);
+  // svelte-ignore state_referenced_locally
+  let graceMinutes = $state(cls.attendance?.graceMinutes ?? defaultAttendance.graceMinutes);
+  // svelte-ignore state_referenced_locally
+  let absentAfterMinutes = $state(cls.attendance?.absentAfterMinutes ?? defaultAttendance.absentAfterMinutes);
   let confirmingDelete = $state(false);
 
   function save(event: SubmitEvent) {
     event.preventDefault();
     if (!name.trim()) return;
     updateClass(cls.id, { name: name.trim() });
+    const minutes = (value: number, fallback: number) => (Number.isFinite(value) && value >= 0 ? Math.round(value) : fallback);
+    setAttendance(
+      cls.id,
+      takesAttendance
+        ? {
+            graceMinutes: minutes(graceMinutes, defaultAttendance.graceMinutes),
+            absentAfterMinutes: Math.max(1, minutes(absentAfterMinutes, defaultAttendance.absentAfterMinutes)),
+          }
+        : null,
+    );
     onClose();
   }
 
@@ -44,6 +61,27 @@
       <h2 id="settings-title">Class settings</h2>
       <label class="field">Class name <input bind:value={name} /></label>
       <p class="muted small">Student PINs are on the <a href="/roster">Roster</a>, for all your classes at once.</p>
+      <label class="check">
+        <input type="checkbox" bind:checked={takesAttendance} />
+        <span>
+          Take attendance in this class
+          <span class="muted small">
+            Students tap their name at the kiosk when they arrive. Arriving after the period starts on your schedule is
+            tardy; not arriving at all is absent, and absent students are hidden from the kiosk. This is your own log for
+            your class, not your school's official attendance.
+          </span>
+        </span>
+      </label>
+      {#if takesAttendance}
+        <label class="field">
+          Minutes after the period starts before an arrival is tardy
+          <input type="number" min="0" bind:value={graceMinutes} />
+        </label>
+        <label class="field">
+          Minutes after class starts before a student who hasn't arrived is absent
+          <input type="number" min="1" bind:value={absentAfterMinutes} />
+        </label>
+      {/if}
 
       <p class="muted small">When this class is on the kiosk, and its no-pass times, are set in <a href="/schedule">Schedule</a>.</p>
       <div class="dialog-actions" style="justify-content:space-between">
