@@ -1,5 +1,5 @@
 ---
-status: amended by ADR-0018
+status: amended by ADR-0018 and ADR-0019
 ---
 
 # Students act from the Student link through a Claim
@@ -7,14 +7,21 @@ status: amended by ADR-0018
 The Student link (ADR 0012) only looked. Teachers kept asking for students to
 make passes from their own Chromebooks and phones, often because they have no
 spare device for a kiosk. Now a student can Claim their own device on the link
-by typing their first name and PIN once (ADR 0018); from then on that device can
-start a pass, sign back in, join or leave a Line and make a Request, exactly as
-at the kiosk. A kiosk becomes optional.
+by typing their first name and PIN (ADR 0018); from then on, until the class
+ends, that device can start a pass, sign back in, join or leave a Line and make
+a Request, exactly as at the kiosk. A kiosk becomes optional.
 
-We chose claiming once over typing a PIN for every action, because a PIN typed
-all day on personal devices is a PIN classmates learn, and a classmate who
-learns a PIN still can't act from a device someone else has already claimed.
-We rejected having the teacher confirm every action, and an honor system.
+We chose claiming once per class over typing a PIN for every action: a PIN typed
+for every trip is a PIN classmates learn, and a classmate who learns a PIN still
+can't act from a device someone else has already claimed. We rejected having the
+teacher confirm every action, and an honor system.
+
+At first a Claim lasted until it was ended. ADR 0019 changed that: every Claim
+ends with its class period's Room, so students set up their device again in each
+class. That costs a PIN typed once a period rather than once ever, which is a
+little more exposure, but a Claim is only ever worth one class, no code or token
+outlives its period, and no "students share devices" setting is needed: a cart
+Chromebook is free again as soon as the class changes.
 
 ## Consequences
 
@@ -25,8 +32,8 @@ We rejected having the teacher confirm every action, and an honor system.
 - A PIN is never a real school ID number, and stays 3 to 6 made-up digits,
   because it is now also what a student types to Claim a device.
 - A student has at most one claimed device. The teacher can end any Claim or all
-  of them; a student can end their own. A teacher with shared devices (carts)
-  can have every Claim end when the Active Class changes.
+  of them; a student can end their own. Every Claim ends when its Room ends,
+  as the class changes (ADR 0019).
 - A claimed device acts only while its student's class is the Active Class.
   There is no location check; passes made from the link are marked as such.
 - Requests from claimed devices are answered where kiosk Requests are: on the

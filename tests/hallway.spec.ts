@@ -442,7 +442,7 @@ test('the pass allowance stops a student, and the teacher can let them go with t
   const row = page.getByRole('row', { name: /Jordan E\./ });
   await expect(row).toContainText('2 of 1');
   await expect(row).toContainText('Out of passes');
-  await row.getByRole('link', { name: 'Jordan E.' }).click();
+  await row.getByRole('link', { name: 'Passes' }).click();
   await expect(page).toHaveURL(/\/history/);
   await expect(page.locator('.chip', { hasText: 'Student is Jordan E.' })).toBeVisible();
   const approved = page.getByRole('row', { name: /Still out/ });
@@ -453,9 +453,7 @@ test('the pass allowance stops a student, and the teacher can let them go with t
 
 test('a warn-only allowance, an exempt student and a destination that does not count', async ({ page }) => {
   await createClassWithRoster(page, 'Period 8');
-  await page.getByRole('button', { name: 'Edit Maya Ca.' }).click();
-  await page.getByLabel(/Exempt from the Pass Allowance/).check();
-  await page.getByRole('button', { name: 'Save' }).click();
+  await markStudent(page, 'Maya Ca.', /Exempt from the Pass Allowance/);
 
   await page.getByRole('link', { name: 'Destinations' }).click();
   await page.getByRole('button', { name: 'Add destination' }).first().click();
@@ -1185,11 +1183,14 @@ test('on a touch screen, a class is dragged by its grip', async ({ browser }) =>
 });
 
 /** Ticks one of the boxes on a student's edit dialog, from the class's Students page. */
+/** A student is edited on the Roster: clicking their name on the class page opens them there; then back to the class. */
 async function markStudent(page: Page, student: string, box: RegExp) {
-  await page.getByRole('button', { name: `Edit ${student}` }).click();
+  const classPage = new URL(page.url()).pathname;
+  await page.getByRole('link', { name: student, exact: true }).click();
   await page.getByLabel(box).check();
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('heading', { name: `Edit ${student}` })).toBeHidden();
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await page.goto(classPage);
 }
 
 /** Leaves the kiosk screen for the teacher's pages, with the PIN. */
@@ -1318,7 +1319,8 @@ async function openStudentLink(page: Page) {
   await page.getByRole('link', { name: 'Student link', exact: true }).click();
   await page.getByRole('button', { name: 'Open student link' }).click();
   const url = await page.getByRole('textbox', { name: 'Student link' }).inputValue();
-  expect(url).toMatch(/\/student\/[\w-]+$/);
+  // Each class period is a Room, joined at /join/ with its six-digit code (docs/adr/0019).
+  expect(url).toMatch(/\/join\/\d{6}$/);
   return url;
 }
 
@@ -1373,20 +1375,20 @@ test('students watch who is out and the line, live, from the student link', asyn
 
   // Home shows the link, and who's watching.
   await goHome(laptop);
-  await expect(laptop.getByRole('textbox', { name: 'Student link' })).toHaveValue(url);
+  await expect(laptop.getByLabel(`Class code ${url.split('/').pop()}`)).toBeVisible();
   await expect(laptop.getByText('1 viewing')).toBeVisible();
 
   // Closing it tells the student; opening it again brings the page back by itself.
   await laptop.getByRole('link', { name: 'Student link', exact: true }).click();
   await laptop.getByRole('button', { name: 'Close student link' }).click();
-  await expect(student.getByRole('heading', { name: 'The student link is closed' })).toBeVisible({ timeout: 10_000 });
+  await expect(student.getByRole('heading', { name: "This class isn't open right now" })).toBeVisible({ timeout: 10_000 });
   await laptop.getByRole('button', { name: 'Open student link' }).click();
   await expect(student.getByRole('heading', { name: 'Period 6' })).toBeVisible({ timeout: 40_000 });
 
-  // A new link: the old one stops working, and the new one works.
-  await laptop.getByRole('button', { name: 'Get a new link' }).click();
-  await laptop.getByRole('dialog').getByRole('button', { name: 'Get a new link' }).click();
-  await expect(student.getByRole('heading', { name: "This link doesn't work any more" })).toBeVisible({ timeout: 10_000 });
+  // A new code: the old one stops working, and the new one works.
+  await laptop.getByRole('button', { name: 'New code' }).click();
+  await laptop.getByRole('dialog').getByRole('button', { name: 'New code' }).click();
+  await expect(student.getByRole('heading', { name: 'This code has ended' })).toBeVisible({ timeout: 10_000 });
   const newUrl = await laptop.getByRole('textbox', { name: 'Student link' }).inputValue();
   expect(newUrl).not.toBe(url);
   await expect(laptop.getByText('Nobody is viewing right now')).toBeVisible({ timeout: 20_000 });
@@ -1394,7 +1396,7 @@ test('students watch who is out and the line, live, from the student link', asyn
   await expect(student.getByRole('region', { name: 'Waiting in line' })).toContainText('Bathroom 1', { timeout: 30_000 });
   await expect(laptop.getByText('1 student viewing right now')).toBeVisible({ timeout: 10_000 });
   await student.goto(url);
-  await expect(student.getByRole('heading', { name: "Can't reach your teacher's computer" })).toBeVisible({
+  await expect(student.getByRole('heading', { name: "Can't reach this class" })).toBeVisible({
     timeout: 40_000,
   });
 });
@@ -1465,7 +1467,7 @@ test('with two tabs open, one answers the student link, and the other takes over
 
   // The tab answering closes; the student's page says so, then finds the other tab.
   await firstTab.close();
-  await expect(student.getByRole('heading', { name: "Can't reach your teacher's computer" })).toBeVisible({
+  await expect(student.getByRole('heading', { name: "Can't reach this class" })).toBeVisible({
     timeout: 30_000,
   });
   await expect(student.getByRole('heading', { name: 'Period 8' })).toBeVisible({ timeout: 60_000 });

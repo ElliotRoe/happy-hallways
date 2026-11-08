@@ -97,12 +97,15 @@ student-facing feature (`docs/adr/0016`).
 - Students' browsers connect to the teacher's computer the same way the kiosk
   does: introduced by the matchmaking server, then over WebRTC's encrypted
   channel, directly or through the TURN relay. The kiosk is never involved.
-- The link's address holds a long random id. **Anyone who has the link can
-  see what it shows** while it is open: numbers only, never a name, so a
-  forwarded link gives away nothing about who is in the class
-  (`docs/adr/0018`). It is still meant for the class's own students, in a place
-  only they can see (such as Google Classroom). "Get a new link" makes the old one stop
-  working at once, and "Close student link" turns everyone away.
+- **Rooms** (`docs/adr/0019`): each class period is a Room with its own
+  six-digit code, shown on the kiosk and the teacher's screen. When the class
+  on the door changes, the Room ends and its code stops working; the next class
+  gets a new one. Students join at `/join` or by scanning the code's QR code.
+  "New code" replaces the current one at once, and "Close student link" turns
+  everyone away. A code another teacher's Room already holds is replaced.
+- **Anyone with the code can see what the Room shows**: numbers only, never a
+  name, so a code passed around gives away nothing about who is in the class
+  (`docs/adr/0018`).
 - **Claims** (`docs/adr/0016`): a student types their first name and PIN once,
   and only while PINs are on; no list of names is ever sent to their device.
   The teacher's computer then gives that device a long random token. A
@@ -110,9 +113,10 @@ student-facing feature (`docs/adr/0016`).
   sign back in, join or leave a Line, make a Request, or undo its own pass,
   and only while that student's class is on the door. It can never do what the
   teacher's PIN does. The teacher's computer checks every action. A student has
-  at most one claimed device; claiming another ends the first. The teacher can
-  end any Claim or all of them, and can have every Claim end when the class
-  changes, for shared devices. After 5 wrong PINs a device waits a minute.
+  at most one claimed device; claiming another ends the first. Every Claim ends
+  with its Room; the teacher can end one or all sooner. After 5 wrong tries a
+  device waits a minute, and after 20 wrong tries in a minute from all devices
+  together, nobody in that Room can set up a device for two minutes.
 - The teacher's PIN is never accepted on a student's device.
 - At most 60 devices can connect at once. A claimed device is never turned
   away; it takes the place of a device that is only looking.

@@ -77,7 +77,8 @@
       acting as a student at any time.
     </p>
     <p>
-      Share the link only with your class. You can close it at any time, or get a new link so the old one stops working.
+      Each class gets a new code, shown on your kiosk and your screen, and the old one stops working when the class changes.
+      You can close the student link at any time, or get a new code straight away.
       It never shows another student's name, how long anyone else has been out, any PIN, or anything you've set for a
       student.
     </p>

@@ -17,6 +17,7 @@ import type {
   Pass,
   PassAllowance,
   PassRequest,
+  Room,
   Schedule,
   Student,
 } from './types';
@@ -148,6 +149,10 @@ function upgrade(saved: SavedAccount): Account {
   }
   saved.manualNoPass ??= null;
   saved.claims ??= [];
+  // The Student link used to be one lasting link; it's now a Room per class period (docs/adr/0019).
+  const link = saved.studentLink as { open: boolean; room?: Room | null } | null;
+  saved.studentLink = link ? { open: link.open, room: link.room ?? null } : null;
+  delete (saved as { claimsEndWithClass?: boolean }).claimsEndWithClass;
   for (const cls of saved.classes) {
     delete cls.destinations;
     delete cls.limit;
@@ -260,6 +265,7 @@ export function createClass(name: string) {
   };
   account.classes.push(cls);
   if (!account.activeClass) account.activeClass = { id: cls.id, changedAt: now() };
+  refreshRoom();
   save();
   return cls.id;
 }
@@ -306,6 +312,7 @@ export function deleteClass(id: string) {
     const next = account.classes[0];
     account.activeClass = next ? { id: next.id, changedAt: now() } : null;
   }
+  refreshRoom();
   save();
 }
 
@@ -863,8 +870,7 @@ function moveActiveClass(activeClass: ActiveClass) {
     mergeInto(account.passes, openPasses(leaving).map((pass) => endUnseen(pass, 'switch')));
   }
   account.activeClass = activeClass;
-  // On shared devices, the next class's students mustn't act as this class's. See docs/adr/0016.
-  if (leaving !== activeClass.id && account.claimsEndWithClass) account.claims = [];
+  refreshRoom();
   if (leaving !== activeClass.id) {
     // The Line and Requests belong to the class at the door; a new class starts with none.
     account.line = [];
@@ -927,13 +933,49 @@ export function setNetworkBlocked(blocked: boolean) {
   save();
 }
 
+/** A Room code: six digits, never starting with 0. */
+function newRoomCode() {
+  return String(100_000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900_000));
+}
+
 /**
- * Opens or closes the Student link. The first time it opens, it gets its
- * address; `newLink` gives it a new one, and the old one stops working.
+ * Keeps the Room matching the class on the door: each class period has its
+ * own Room and code, and there is none between classes. A new Room ends every Claim, so students check in to each class
+ * again. See docs/adr/0019.
  */
-export function setStudentLink(open: boolean, newLink = false) {
-  const id = newLink || !account.studentLink ? newId() : account.studentLink.id;
-  account.studentLink = { id, open };
+function refreshRoom() {
+  const link = account.studentLink;
+  const classId = account.activeClass?.id;
+  if (!link) return;
+  // Closing the link for a moment keeps the Room: opening it again in the same class brings the same code back.
+  if (!classId) {
+    if (link.room) account.claims = [];
+    link.room = null;
+    return;
+  }
+  if (link.room?.classId === classId) return;
+  link.room = { code: newRoomCode(), classId, startedAt: now() };
+  account.claims = [];
+}
+
+/** Opens or closes the Student link. Opening it during a class starts that class's Room. */
+export function setStudentLink(open: boolean) {
+  account.studentLink = { open, room: account.studentLink?.room ?? null };
+  refreshRoom();
+  save();
+}
+
+/**
+ * A new code for the class on now: the old one stops working at once, and
+ * every device has to join again. Also used when another teacher's Room
+ * happens to have the same code.
+ */
+export function newRoom() {
+  const room = account.studentLink?.room;
+  if (!room) return;
+  room.code = newRoomCode();
+  room.startedAt = now();
+  account.claims = [];
   save();
 }
 
@@ -960,11 +1002,6 @@ export function endClaim(token: string) {
 
 export function endAllClaims() {
   account.claims = [];
-  save();
-}
-
-export function setClaimsEndWithClass(on: boolean) {
-  account.claimsEndWithClass = on || undefined;
   save();
 }
 
@@ -1002,6 +1039,7 @@ export function doorSetup(): DoorSetup {
     passes: account.passes.filter((pass) => !pass.inAt || pass.outAt >= since),
     line: account.line,
     requests: account.requests,
+    room: account.studentLink?.open && account.studentLink.room ? { code: account.studentLink.room.code } : null,
     denied: account.deniedRequests
       .filter((request) => request.deniedAt >= minuteAgo)
       .map((request) => ({

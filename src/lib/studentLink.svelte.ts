@@ -6,6 +6,7 @@ import {
   endClaim,
   findClaim,
   findClass,
+  newRoom,
   noPassNow,
   onReload,
   onSave,
@@ -27,7 +28,8 @@ import { displayName } from './roster';
 import type { LinkAction, OwnView, StudentLinkMessage, StudentMessage, StudentView } from './types';
 
 /**
- * The Student link, on the teacher's computer. Students open the link on
+ * The Student link, on the teacher's computer. Each class period is a Room
+ * with its own code (docs/adr/0019). Students open the link on
  * their own Chromebook or phone, and their browser connects straight to this
  * one (PeerJS over WebRTC, relayed through Cloudflare's TURN servers when a
  * network blocks direct connections; see peer.ts), the same way the kiosk
@@ -56,9 +58,34 @@ export const studentLink = $state({
   viewers: 0,
 });
 
-export function studentLinkUrl() {
-  return account.studentLink ? `${location.origin}/student/${account.studentLink.id}` : '';
+/** The Room students join right now, if the link is open and a class is on. */
+export function currentRoom() {
+  return account.studentLink?.open ? (account.studentLink.room ?? null) : null;
 }
+
+/** The address a QR code takes students to: the join page with the Room code filled in. */
+export function studentLinkUrl() {
+  const room = currentRoom();
+  return room ? `${location.origin}/join/${room.code}` : '';
+}
+
+/** "123 456": easier to read off a board and type. */
+export function spacedCode(code: string) {
+  return `${code.slice(0, 3)} ${code.slice(3)}`;
+}
+
+/**
+ * Wrong first-name-and-PIN tries in this Room from every device together. Past
+ * this many in a minute, nobody can set up a device for a while, however many
+ * devices someone uses to guess. See docs/adr/0019.
+ */
+const roomTriesPerMinute = 20;
+let roomTries: number[] = [];
+let roomPausedUntil = 0;
+
+/** The tab answering the link says so every few seconds, so another tab can tell it from another teacher's Room with the same code. */
+const holderKey = 'hallway.student-link-holder';
+let holderTimer = 0;
 
 let peer: Peer | null = null;
 /** The address this tab answers the link on, or is trying to. */
@@ -108,14 +135,17 @@ function countViewers() {
  * While the link is closed, this computer still answers it, only to say so.
  */
 export async function serveStudentLink() {
-  const address = account.studentLink ? studentLinkPrefix + account.studentLink.id : null;
+  const room = currentRoom();
+  const address = room ? studentLinkPrefix + room.code : null;
   if (address === claimed) {
-    if (!account.studentLink?.open) turnAwayAll({ type: 'closed' });
     pushView();
     return;
   }
-  // A new link, or none: whoever watched the old one is told it stopped working.
-  turnAwayAll({ type: 'old-link' });
+  // A new Room (the class changed), or none: whoever was in the old one is told it ended.
+  turnAwayAll({ type: account.studentLink?.open ? 'old-link' : 'closed' });
+  roomTries = [];
+  roomPausedUntil = 0;
+  clearInterval(holderTimer);
   const previous = peer;
   setTimeout(() => previous?.destroy(), 1000);
   peer = null;
@@ -133,15 +163,27 @@ export async function serveStudentLink() {
     return;
   }
   peer = created;
-  created.on('open', () => (studentLink.status = 'live'));
+  const holding = () => localStorage.setItem(holderKey, JSON.stringify({ address, at: Date.now() }));
+  created.on('open', () => {
+    studentLink.status = 'live';
+    holding();
+    holderTimer = window.setInterval(holding, 5000);
+  });
   created.on('disconnected', () => (studentLink.status = 'connecting'));
   created.on('connection', welcome);
   created.on('error', (error) => {
-    // Another tab answers the link already. It may also be a reloaded page's
-    // old connection, which the server frees shortly, so look again later.
     if (error.type !== 'unavailable-id' || peer !== created) return;
     created.destroy();
     peer = null;
+    // Nobody here holds this code, so another teacher's Room has it: take a new one.
+    const holder = JSON.parse(localStorage.getItem(holderKey) ?? 'null') as { address: string; at: number } | null;
+    if (holder?.address !== address || Date.now() - holder.at > 15_000) {
+      claimed = null;
+      newRoom();
+      return;
+    }
+    // Another tab answers the link already. It may also be a reloaded page's
+    // old connection, which the server frees shortly, so look again later.
     studentLink.status = 'taken';
     studentLink.viewers = Number(localStorage.getItem(viewersKey)) || 0;
     retryTimer = window.setTimeout(() => {
@@ -156,7 +198,7 @@ export async function serveStudentLink() {
 function welcome(connection: DataConnection) {
   const token = (connection.metadata as { token?: string } | undefined)?.token;
   connection.on('open', () => {
-    if (!account.studentLink?.open) return turnAway(connection, { type: 'closed' });
+    if (!currentRoom()) return turnAway(connection, { type: 'closed' });
     const claimed = !!findClaim(token);
     if (viewers.size >= maxViewers) {
       if (!claimed) return turnAway(connection, { type: 'full' });
@@ -223,7 +265,7 @@ function allowed(studentId: string, action: LinkAction) {
  */
 function claim(connection: DataConnection, firstName: string, pin: string) {
   const tries = pinTries.get(connection) ?? { wrong: 0, until: 0 };
-  if (Date.now() < tries.until) {
+  if (Date.now() < tries.until || Date.now() < roomPausedUntil) {
     return send(connection, { type: 'claim-refused', message: 'Too many tries. Wait a minute, then try again.' });
   }
   if (!account.studentPins) {
@@ -236,6 +278,8 @@ function claim(connection: DataConnection, firstName: string, pin: string) {
   if (!student) {
     const wrong = tries.wrong + 1;
     pinTries.set(connection, wrong >= maxPinTries ? { wrong: 0, until: Date.now() + 60_000 } : { wrong, until: 0 });
+    roomTries = [...roomTries.filter((at) => Date.now() - at < 60_000), Date.now()];
+    if (roomTries.length >= roomTriesPerMinute) roomPausedUntil = Date.now() + 2 * 60_000;
     return send(connection, {
       type: 'claim-refused',
       message: "That name and PIN don't match anyone in the class on now. Check both and try again.",

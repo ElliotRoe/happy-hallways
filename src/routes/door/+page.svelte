@@ -48,6 +48,7 @@
   import Icon from '#lib/Icon.svelte';
   import { askBeforeLeaving, leaveTo } from '#lib/leaving.ts';
   import Modal from '#lib/Modal.svelte';
+  import RoomCode from '#lib/RoomCode.svelte';
   import StudentPinPad from '#lib/StudentPinPad.svelte';
   import SupportDetails from '#lib/SupportDetails.svelte';
   import { serveStudentLink } from '#lib/studentLink.svelte.ts';
@@ -329,6 +330,10 @@
         <p class="door-eyebrow">{cls?.name ?? 'Happy Hallways'}</p>
         <h1>{cls || !following ? 'Tap your name' : 'No class right now'}</h1>
       </div>
+      {#if setup()?.room}
+        <!-- Students can join this class on their own device with this code (docs/adr/0019). -->
+        <div class="door-room"><RoomCode code={setup()!.room!.code} size="small" /></div>
+      {/if}
       {#if paired && door.status === 'live'}
         <p class="connection live"><span class="dot"></span>Connected</p>
       {:else if paired}
@@ -635,6 +640,10 @@
 </div>
 
 <style>
+  .door-room {
+    margin-left: auto;
+  }
+
   /* The door screen is read from across the room: large type, plain light surfaces, strong contrast. */
   .door {
     --door-bg: var(--bg);
@@ -688,6 +697,7 @@
   }
 
   .door-head {
+    flex-wrap: wrap;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;

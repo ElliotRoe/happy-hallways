@@ -4,21 +4,26 @@
     classStudents,
     endAllClaims,
     endClaim,
-    setClaimsEndWithClass,
+    findClass,
+    newRoom,
     setStudentLink,
   } from '#lib/account.svelte.ts';
   import { displayName } from '#lib/roster.ts';
   import ConfirmDialog from '#lib/ConfirmDialog.svelte';
   import Icon from '#lib/Icon.svelte';
-  import { maxViewers, studentLink } from '#lib/studentLink.svelte.ts';
+  import { popOutRoom } from '#lib/popOut.ts';
+  import RoomCode from '#lib/RoomCode.svelte';
+  import { currentRoom, maxViewers, studentLink } from '#lib/studentLink.svelte.ts';
   import StudentLinkCopy from '#lib/StudentLinkCopy.svelte';
 
   /**
-   * The Student link: students watch the line from their own device, and a
-   * student who Claims it with their PIN can sign out and back in from it.
-   * See docs/adr/0012 and 0016.
+   * The Student link: students join each class's Room with its code or QR
+   * code, see how things stand, and, once they've set up their device with
+   * their PIN, sign out and back in from it. See docs/adr/0012, 0016 and 0019.
    */
   const open = $derived(!!account.studentLink?.open);
+  const room = $derived(currentRoom());
+  const roomClass = $derived(findClass(room?.classId)?.name ?? '');
   const claims = $derived(
     account.claims
       .map((claim) => {
@@ -43,9 +48,10 @@
       <p class="eyebrow">Student link</p>
       <h1>Let students sign out from their seats</h1>
       <p class="muted">
-        Post a link in Google Classroom. On their own Chromebook or phone, students see who's out, who's waiting in line,
-        and whether passes are open. A student who sets up their device with their PIN, once, can then sign out, come
-        back, join a line or ask you from it, during their class. With the link, you don't need a kiosk at all.
+        Each class gets its own code, new every time the class on the kiosk changes. Students type it at
+        <strong>/join</strong> or scan its QR code on their Chromebook or phone, and see whether passes are open and how
+        many are out or waiting. A student who sets up their device with their first name and PIN can sign out, come
+        back, join a line or ask you from it, until the class ends. With the link, you don't need a kiosk at all.
       </p>
     </div>
   </header>
@@ -60,11 +66,13 @@
     <div class="card-head">
       <div>
         <p class="eyebrow">{open ? 'Open' : 'Closed'}</p>
-        <h2>{open ? 'Students can view the line' : 'The student link is closed'}</h2>
+        <h2>{!open ? 'The student link is closed' : room ? `${roomClass}'s code` : 'Waiting for a class'}</h2>
         <p class="muted small">
-          {open
-            ? 'Anyone with the link can see whether passes are open and how many students are out or waiting, never who.'
-            : 'Nobody can view the line until you open it.'}
+          {!open
+            ? 'Nobody can join until you open it.'
+            : room
+              ? 'Show it on the board, or on the kiosk where it already appears. Anyone with the code sees how many students are out or waiting, never who.'
+              : 'A code appears when a class is on the kiosk.'}
         </p>
       </div>
       {#if open}
@@ -76,8 +84,12 @@
       {/if}
     </div>
 
-    {#if open}
+    {#if room}
+      <RoomCode code={room.code} />
       <StudentLinkCopy />
+      <div class="row">
+        <button class="btn btn-small" onclick={popOutRoom}><Icon name="monitor" size={14} />Pop out for the board</button>
+      </div>
       <p class="viewers" role="status">
         <span class="status-dot" class:live={studentLink.viewers > 0} aria-hidden="true"></span>
         {#if studentLink.status === 'connecting'}
@@ -92,7 +104,7 @@
       {/if}
       <div class="row">
         <button class="btn btn-quiet" onclick={() => (confirmNewLink = true)}>
-          <Icon name="history" size={16} />Get a new link
+          <Icon name="history" size={16} />New code
         </button>
       </div>
     {/if}
@@ -104,8 +116,9 @@
         <p class="eyebrow">Students' devices</p>
         <h2 id="claims-title">Who can sign out from their own device</h2>
         <p class="muted small">
-          A student types their first name and PIN on the link, once. Their device then acts as them until you, or they,
-          stop it. Each student can use one device; setting up another stops the first.
+          A student types their first name and PIN after joining. Their device then acts as them until the class ends,
+          or until you, or they, stop it. Students set up again in each class. Each student can use one device; setting
+          up another stops the first.
           {#if !anyPins}Students need a PIN for this: turn on PINs on the <a href="/roster">Roster</a>. Until then the link only shows how things stand.{/if}
         </p>
       </div>
@@ -125,17 +138,6 @@
     {:else}
       <p class="muted small">No student has set up a device yet.</p>
     {/if}
-    <label class="check">
-      <input
-        type="checkbox"
-        checked={!!account.claimsEndWithClass}
-        onchange={(event) => setClaimsEndWithClass(event.currentTarget.checked)}
-      />
-      <span>
-        Students share devices (like a Chromebook cart)
-        <span class="muted small">Every device stops acting as its student when the class on the kiosk changes.</span>
-      </span>
-    </label>
   </section>
 
   <section class="card">
@@ -153,11 +155,11 @@
 
 {#if confirmNewLink}
   <ConfirmDialog
-    title="Get a new student link?"
-    message="The old link stops working straight away. Post the new one wherever students found the old one."
-    confirmLabel="Get a new link"
+    title="Get a new code?"
+    message="The old code stops working straight away, and every student has to join again with the new one and set up their device again."
+    confirmLabel="New code"
     onConfirm={() => {
-      setStudentLink(true, true);
+      newRoom();
       confirmNewLink = false;
     }}
     onCancel={() => (confirmNewLink = false)}

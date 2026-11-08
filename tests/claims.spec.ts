@@ -70,7 +70,7 @@ test('a student claims their own device with their PIN, then signs out and back 
   expect(await student.evaluate(() => Object.keys(localStorage))).toEqual([]);
 });
 
-test('on shared devices, every Claim ends when the class on the kiosk changes', async ({ page }) => {
+test('each class is a new Room with a new code, and every Claim ends with its Room', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => {
     const at = new Date(Date.now() - 60_000).toISOString();
@@ -81,6 +81,7 @@ test('on shared devices, every Claim ends when the class on the kiosk changes', 
         laptopPeerId: 'hallway-claims',
         roster: [{ id: 'sam', firstName: 'Sam', lastName: 'Lee', pin: '1357' }],
         rosterMergeSeen: true,
+        studentPins: true,
         classes: [
           { id: 'p1', name: 'Period 1', createdAt: at, members: [{ studentId: 'sam', lastPrefix: 'L', status: 'current' }] },
           { id: 'p2', name: 'Period 2', createdAt: at, members: [] },
@@ -95,9 +96,8 @@ test('on shared devices, every Claim ends when the class on the kiosk changes', 
         activeClass: { id: 'p1', changedAt: at },
         replacedKiosks: [],
         networkBlocked: false,
-        studentLink: { id: 'link', open: true },
+        studentLink: { open: true, room: { code: '481516', classId: 'p1', startedAt: at } },
         claims: [{ token: 'secret', studentId: 'sam', claimedAt: at }],
-        claimsEndWithClass: true,
         seenPopups: {},
       }),
     );
@@ -107,12 +107,22 @@ test('on shared devices, every Claim ends when the class on the kiosk changes', 
     await page.keyboard.press('Escape');
   });
   await page.goto('/student-link');
+  await expect(page.getByLabel('Class code 481516')).toBeVisible();
   await expect(page.getByRole('listitem').filter({ hasText: 'Sam L.' })).toBeVisible();
-  await expect(page.getByLabel(/Students share devices/)).toBeChecked();
 
   await page.locator('.status-box').click();
   await page.getByRole('button', { name: /^Class on the kiosk:/ }).click();
   await page.getByRole('menuitemradio', { name: 'Period 2' }).click();
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account')!));
   expect(saved.claims).toEqual([]);
+  expect(saved.studentLink.room.classId).toBe('p2');
+  expect(saved.studentLink.room.code).toMatch(/^\d{6}$/);
+  expect(saved.studentLink.room.code).not.toBe('481516');
+});
+
+test('students type the class code at /join', async ({ page }) => {
+  await page.goto('/join');
+  await page.getByLabel('Class code').fill('481 516');
+  await page.getByRole('button', { name: 'Join' }).click();
+  await expect(page).toHaveURL(/\/join\/481516$/);
 });

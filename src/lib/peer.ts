@@ -3,8 +3,8 @@ import type { DataConnection, Peer } from 'peerjs';
 /** A pairing code is the last part of a temporary address the kiosk dials once. */
 export const pairingPrefix = 'hallway-pair-';
 
-/** The teacher's computer answers the Student link at this address followed by the link's id. See docs/adr/0012. */
-export const studentLinkPrefix = 'hallway-students-';
+/** The teacher's computer answers the Student link at this address followed by the Room code. See docs/adr/0019. */
+export const studentLinkPrefix = 'hallway-room-';
 
 /**
  * Happy Hallways' own matchmaking server (a standard PeerJS server). It only

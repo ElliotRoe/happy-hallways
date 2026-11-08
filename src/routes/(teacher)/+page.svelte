@@ -37,8 +37,9 @@
   import QuietScene, { seasons, type Season } from '#lib/QuietScene.svelte';
   import { page } from '$app/state';
   import SiteFooter from '#lib/SiteFooter.svelte';
-  import { studentLink } from '#lib/studentLink.svelte.ts';
-  import StudentLinkCopy from '#lib/StudentLinkCopy.svelte';
+  import { currentRoom, studentLink } from '#lib/studentLink.svelte.ts';
+  import RoomCode from '#lib/RoomCode.svelte';
+  import { popOutRoom } from '#lib/popOut.ts';
   import { duration, hasRealDuration, isOverdue, now, time } from '#lib/passes.ts';
   import { nextClassPeriod, periodAt, toMinutes } from '#lib/schedule.ts';
   import type { Block, PassRequest } from '#lib/types.ts';
@@ -411,10 +412,15 @@
           </span>
         {/if}
       </div>
-      {#if account.studentLink?.open}
-        <StudentLinkCopy />
+      {#if account.studentLink?.open && currentRoom()}
+        <RoomCode code={currentRoom()!.code} size="small" />
+        <div class="kiosk-actions">
+          <button class="btn btn-small" onclick={popOutRoom}><Icon name="monitor" size={14} />Pop out</button>
+        </div>
+      {:else if account.studentLink?.open}
+        <p class="muted small">A code for students to join appears when a class is on.</p>
       {:else}
-        <p class="muted small">Students can check who's out and the line from their own Chromebook or phone.</p>
+        <p class="muted small">Students can join each class from their own Chromebook or phone with a code.</p>
         <div class="kiosk-actions"><a class="btn btn-small" href="/student-link">Open student link</a></div>
       {/if}
     </section>

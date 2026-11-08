@@ -261,17 +261,21 @@ export type Account = {
   /** Set when a pairing attempt showed that this network blocks device-to-device connections. */
   networkBlocked: boolean;
   /**
-   * The Student link, once the teacher has opened it: the unguessable id in
-   * its address, and whether it is open right now. Getting a new link changes
-   * the id. See docs/adr/0012.
+   * The Student link: whether it is open, and the Room students join right
+   * now. Every class period gets a new Room, with a new code. See docs/adr/0019.
    */
-  studentLink: { id: string; open: boolean } | null;
-  /** Students' own devices that act as them on the Student link. At most one per student. See docs/adr/0016. */
+  studentLink: { open: boolean; room: Room | null } | null;
+  /** Students' own devices that act as them in the current Room. At most one per student. See docs/adr/0016. */
   claims: Claim[];
-  /** For shared devices: every Claim ends when the Active Class changes, instead of lasting until ended. */
-  claimsEndWithClass?: boolean;
   lastExportedAt?: string;
 };
+
+/**
+ * The Student link for one class period: a short code students type, or scan
+ * as a QR code, to join. A new class on the door means a new Room, so a code
+ * stops working when its class ends. See docs/adr/0019.
+ */
+export type Room = { code: string; classId: string; startedAt: string };
 
 /**
  * A student's own device made to act as them on the Student link. The device
@@ -334,6 +338,8 @@ export type DoorSetup = {
   requests?: PassRequest[];
   /** Students the teacher said no to in the last minute, and how many seconds ago. */
   denied?: { studentId: string; secondsAgo: number }[];
+  /** The Room's code, for the kiosk to show, while the Student link is open. */
+  room?: { code: string } | null;
 };
 
 /**
