@@ -70,7 +70,8 @@
 
   <section class="card">
     {#if rows.length}
-      <div class="table-wrap">
+      <!-- The card holds only the table, so the column headers sit right at its top. -->
+      <div class="table-wrap flush">
         <table>
           <thead>
             <tr>
@@ -98,6 +99,16 @@
 </div>
 
 <style>
+  .table-wrap.flush {
+    margin-top: -20px;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  /* The card's own border is the top edge here, so the headers don't draw a second one. */
+  .table-wrap.flush :global(th) {
+    border-top: 0;
+  }
+
   .merges {
     display: grid;
     gap: 10px;
