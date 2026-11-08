@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0015
+---
+
 # The same child in two classes is two unrelated students
 
 A teacher who has the same child in Period 1 and Period 5 gets two independent

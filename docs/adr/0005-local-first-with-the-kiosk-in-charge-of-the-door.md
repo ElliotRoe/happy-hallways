@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0014
+---
+
 # Local-first, with the kiosk in charge of the door
 
 Hallway has no server. A teacher's data lives in their laptop's browser, and the

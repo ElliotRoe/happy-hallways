@@ -7,20 +7,24 @@ lives on the teacher's own devices; there is no server and no sign-in.
 ## Language
 
 **Class**:
-A group of students a teacher sees together during one period. Each class owns
-its own roster.
+A group of students from the teacher's Roster seen together during one period.
 _Avoid_: Section, classroom, group
 
+**Roster**:
+Every student a teacher teaches, across all their classes, each appearing once.
+_Avoid_: Class list, student list, directory
+
 **Student**:
-One child on one class's roster. The same child taught in two different classes
-is two unrelated students, and nothing in the product connects them.
+One child on the teacher's Roster. The same child taught in two classes is one
+student, so their passes, PIN and Claim follow them from class to class.
 _Avoid_: Pupil, kid, roster entry
 
 **Display Name**:
-The only form of a student's name Happy Hallways keeps — a first name plus as many
-leading letters of the last name as it takes to tell them apart from everyone
-else in their class ("Maya C.", or "Maya Che." if a Maya Cha. shares the room).
-A full last name is never stored.
+The only form of a student's name that students or passers-by ever see, on the
+kiosk or the Student link — a first name plus as many leading letters of the
+last name as it takes to tell them apart from everyone else in their class
+("Maya C.", or "Maya Che." if a Maya Cha. shares the room). The student's full
+name stays on the teacher's computer.
 _Avoid_: Full name, last initial, student name
 
 **Destination**:
@@ -55,15 +59,16 @@ _Avoid_: Total limit, room limit, Pass Allowance (that is how many passes each s
 **Pass Allowance**:
 How many passes each student may take in a stretch of time: per day, per week,
 or since the teacher last reset it (for a quarter or a term). One setting for
-all the teacher's classes, in Pass Options, counted separately for each student
-in each class. Only destinations marked as counting use it up; a trip to the
+all the teacher's classes, in Pass Options, counted for each student across
+every class they have with the teacher. Only destinations marked as counting use it up; a trip to the
 Nurse, for example, need not. When a student has used it all, the kiosk either
 stops them or warns them and lets them go, as the teacher chooses. Off unless
 the teacher turns it on.
 _Avoid_: Pass Limit (that is how many may be out at once), quota, budget, cap
 
 **Request**:
-A blocked student asking the teacher to let them go, made at the kiosk. The
+A blocked student asking the teacher to let them go, made at the kiosk or from
+a claimed device on the Student link. The
 teacher sees what the student wants to do and answers yes or no, either on Home
 or with their PIN at the kiosk; a yes starts the pass at once. Whatever was
 blocking them, the teacher's choice is the same.
@@ -108,8 +113,8 @@ teacher can see it later, and the kiosk never shows that they can always go.
 _Avoid_: Exempt Student (that lifts only the Pass Allowance), unlimited student, medical pass, override
 
 **PIN**:
-A few digits (3 to 6) a student types at the kiosk after tapping their name, so
-a classmate can't sign out or in as them. Each class turns PINs on or off; they
+A few digits (3 to 6) a student types at the kiosk after tapping their name, or
+once to Claim their own device, so a classmate can't sign out or in as them. Each class turns PINs on or off; they
 are off unless the teacher turns them on. Happy Hallways makes up a 4-digit PIN
 for each student, different from everyone else's in the class and from the
 Teacher PIN; the teacher can change one or bring their own in the class list.
@@ -175,9 +180,9 @@ _Avoid_: Auto mode, autopilot, paused schedule
 
 **Kiosk**:
 The locked, student-facing device by the classroom door. A teacher has at most
-one kiosk at a time; pairing a new one disconnects the old. The kiosk decides
-who may leave right now and keeps working while the teacher's laptop is closed,
-handing its passes over once the two can reach each other again.
+one kiosk at a time; pairing a new one disconnects the old. A teacher may have
+none, and students act from the Student link instead. The kiosk acts only while
+it can reach the teacher's computer, which decides who may leave.
 _Avoid_: Kiosk mode, door screen, station, student mode
 
 **Pairing**:
@@ -189,14 +194,25 @@ network, the teacher's own computer is the kiosk.
 _Avoid_: Linking, connecting, logging in
 
 **Student link**:
-A link the teacher posts, say in Google Classroom, so students can see on their
-own Chromebook or phone what the door screen shows about the Active Class: who
-is out and where they went, each Line, and whether passes are open. It only
-looks; signing out still happens at the kiosk. Students' devices connect to the
-teacher's computer, not the kiosk, so the link works only while Happy Hallways
-is open there, and only while the teacher has it open. Getting a new link stops
-the old one working. Anyone with the link can see the Display Names on it.
+A link the teacher posts, say in Google Classroom, so students can use their own
+Chromebook or phone the way they use the kiosk. Anyone with the link sees what
+the door screen shows about the Active Class: who is out and where they went,
+each Line, and whether passes are open. A device holding a Claim can also act as
+that student: start a pass, sign back in, join or leave a Line, and make a
+Request. Students' devices connect to the teacher's computer, not the kiosk, so
+the link works only while Happy Hallways is open there, and only while the
+teacher has it open. Getting a new link stops the old one working. Anyone with
+the link can see the Display Names on it.
 _Avoid_: Share link, public view, student view, student mode
+
+**Claim**:
+A student's own device made to act as that student on the Student link, by
+picking their name and typing their PIN once. A student has at most one claimed
+device. The teacher can end a Claim at any time, and the device goes back to
+only looking. For shared devices, the teacher can have every Claim end when the
+Active Class changes instead of lasting until ended. Nothing about the Claim is kept anywhere but the teacher's
+computer and the student's device.
+_Avoid_: Login, account, sign-in, session, pairing (that makes a kiosk)
 
 **Active Class**:
 The class the kiosk is currently showing. Changing it ends every pass still open
@@ -241,8 +257,9 @@ _Avoid_: Edit, fix, override
 
 **Former Student**:
 A student who has left a class part-way through the year. They disappear from
-the door screen but keep every trip they ever took, so the class's history stays
-whole. A student who has history is never truly deleted.
+that class's door screen but keep every trip they ever took, so the class's
+history stays whole, and they stay in any other class they are still in. A
+student who has history is never truly deleted.
 _Avoid_: Archived student, deleted student, inactive student
 
 **Backup**:

@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0017
+---
+
 # Store only a first name and a last-name prefix
 
 Student names are displayed on a screen mounted by a classroom door, where
