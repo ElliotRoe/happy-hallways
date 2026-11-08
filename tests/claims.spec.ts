@@ -47,9 +47,9 @@ test('a student claims their own device with their PIN, then signs out and back 
 
   // Sam signs out from the device; the teacher's computer decides, and marks where it came from.
   await student.getByRole('button', { name: 'I need to leave' }).click();
-  await student.getByRole('button', { name: /^Bathroom/ }).click();
+  await student.getByRole('button', { name: /^Bathroom 1/ }).click();
   await expect(student.getByRole('alert')).toContainText('Sam L.: Bathroom');
-  await expect(student.getByText(/Out · .*Bathroom · 0 min/)).toBeVisible();
+  await expect(student.getByText(/Out · .*Bathroom 1 · 0 min/)).toBeVisible();
   await laptop.getByRole('link', { name: 'History', exact: true }).click();
   const row = laptop.getByRole('row', { name: /Sam L\./ });
   await expect(row).toContainText('Still out', { timeout: 10_000 });

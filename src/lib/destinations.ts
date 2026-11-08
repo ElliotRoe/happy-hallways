@@ -108,10 +108,16 @@ export function knownIcon(name: string): DestinationIcon {
   return renamedIcons[name] ?? 'map-pin';
 }
 
-/** Every new account starts with these, so students can sign out on day one. */
+/**
+ * Every new account starts with these, so students can sign out on day one.
+ * Two bathrooms, each one at a time, show from the start that every
+ * destination with a limit has its own line: someone waiting for one bathroom
+ * never holds up the other. Teachers rename them to fit their school.
+ */
 export function defaultDestinations(newId: () => string): Destination[] {
   return [
-    { id: newId(), label: 'Bathroom', minutes: 5, color: 'blue', icon: 'toilet', limit: 1 },
+    { id: newId(), label: 'Bathroom 1', minutes: 5, color: 'blue', icon: 'toilet', limit: 1 },
+    { id: newId(), label: 'Bathroom 2', minutes: 5, color: 'teal', icon: 'toilet', limit: 1 },
   ];
 }
 

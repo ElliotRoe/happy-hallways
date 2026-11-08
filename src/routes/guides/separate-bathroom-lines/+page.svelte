@@ -12,7 +12,7 @@
     {
       name: 'Add a destination for the first bathroom',
       text: 'In Happy Hallways, click Destinations in the sidebar, then click Add destination.',
-      tip: 'Already have a bathroom destination? You can use it as one of the two: click its card and give it a new name and a limit, as in the next step.',
+      tip: 'New accounts start with Bathroom 1 and Bathroom 2, already one at a time with a line each: just click each card and rename it. Already have a bathroom destination? Use it as one of the two, as in the next step.',
       image: `${pictures}/1-add-destination.png`,
       alt: 'The Destinations page, with the Add destination button circled',
     },

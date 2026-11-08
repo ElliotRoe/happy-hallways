@@ -86,7 +86,7 @@ test('a schedule with no-pass times', async ({ page }) => {
   await page.getByRole('button', { name: 'Open kiosk screen' }).click();
   await expect(page.getByText('No passes right now.')).toBeVisible();
   await page.getByRole('button', { name: /^Ava/ }).click();
-  await page.getByRole('button', { name: /^Bathroom/ }).click();
+  await page.getByRole('button', { name: /^Bathroom 1/ }).click();
   await expect(page.getByText(/Passes open at 8:10 AM. Join the line/)).toBeVisible();
   await circle(page.getByRole('button', { name: 'Join the line' }));
   await snap(page, guide, '7-kiosk-no-passes', [

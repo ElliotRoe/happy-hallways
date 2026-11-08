@@ -26,8 +26,10 @@ test('a separate line for each bathroom', async ({ page }) => {
 
   // The guide doesn't assume the teacher has a bathroom already, so the pictures start without one.
   await page.getByRole('link', { name: 'Destinations' }).click();
-  await page.getByRole('button', { name: /^Bathroom/ }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click();
+  for (const name of [/^Bathroom 1/, /^Bathroom 2/]) {
+    await page.getByRole('button', { name }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click();
+  }
   const add = page.getByRole('button', { name: 'Add destination' }).first();
   for (const [name, color, icon] of [
     ['Nurse', 'pink', 'stethoscope'],
