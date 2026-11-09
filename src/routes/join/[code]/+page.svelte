@@ -23,9 +23,13 @@
   type Reach = 'connecting' | 'live' | 'unreachable' | 'closed' | 'full' | 'old-link';
   let reach = $state<Reach>('connecting');
   let view = $state<StudentView | null>(null);
+  /** This page has reached the class before, so losing it now is most likely the teacher's page reloading. */
+  let wasLive = $state(false);
 
   /** How long to wait before trying the teacher's computer again, by what happened last time. */
   const retrySeconds: Partial<Record<Reach, number>> = { unreachable: 10, closed: 20, full: 30 };
+  /** After a dropped connection, look again quickly: the teacher's page is usually back within seconds. */
+  const reconnectSeconds = 3;
 
   const claimKey = `hallway.claim.${page.params.code}`;
   function savedClaim(): { token: string; name: string } | null {
@@ -115,7 +119,7 @@
 
     function tryAgainLater() {
       clearTimeout(retryTimer);
-      const seconds = retrySeconds[reach];
+      const seconds = reach === 'unreachable' && wasLive ? reconnectSeconds : retrySeconds[reach];
       if (seconds) retryTimer = window.setTimeout(dial, seconds * 1000);
     }
 
@@ -151,6 +155,7 @@
         if (message.type === 'view') {
           view = message.view;
           reach = 'live';
+          wasLive = true;
         }
         if (message.type === 'closed' || message.type === 'full' || message.type === 'old-link') stopWatching(message.type);
         hear(message);
@@ -403,6 +408,10 @@
       {#if reach === 'connecting'}
         <span class="icon-ring"><Icon name="link" size={30} /></span>
         <h1>Connecting to your teacher's computer…</h1>
+      {:else if reach === 'unreachable' && wasLive}
+        <span class="icon-ring"><Icon name="link" size={30} /></span>
+        <h1>Reconnecting to your teacher's computer…</h1>
+        <p>This usually takes a few seconds. You don't need to do anything.</p>
       {:else if reach === 'unreachable'}
         <span class="icon-ring warn"><Icon name="laptop" size={30} /></span>
         <h1>Can't reach this class</h1>

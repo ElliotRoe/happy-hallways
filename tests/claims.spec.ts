@@ -134,3 +134,38 @@ test('a link with ?code= fills in the class code', async ({ page }) => {
   await page.getByRole('button', { name: 'Join' }).click();
   await expect(page).toHaveURL(/\/join\/481516$/);
 });
+
+test("the teacher reloading doesn't end a student's setup: their device says it's reconnecting, then carries on", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const laptop = await (await browser.newContext()).newPage();
+  const student = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  await laptop.addLocatorHandler(laptop.locator('.tip'), async (tip) => {
+    await tip.getByRole('button', { name: /Skip|Got it/ }).click();
+  });
+  await laptop.goto('/classes/new');
+  await laptop.getByLabel('Class name').fill('Period 2');
+  await laptop.getByRole('button', { name: 'Create class' }).click();
+  await laptop.getByLabel('One student per line').fill('Sam Lee, 1357');
+  await laptop.getByRole('dialog').getByRole('button', { name: 'Add students' }).click();
+  await laptop.getByRole('link', { name: 'Roster', exact: true }).click();
+  await laptop.getByRole('switch', { name: 'Students use PINs' }).check();
+  await laptop.getByRole('link', { name: 'Student devices', exact: true }).click();
+  await laptop.getByRole('button', { name: 'Turn on student devices' }).click();
+  const url = await laptop.getByRole('textbox', { name: 'Join link' }).inputValue();
+  await expect(laptop.getByText('Nobody is viewing right now')).toBeVisible({ timeout: 20_000 });
+  await student.goto(url);
+  await student.getByRole('button', { name: 'Use this device for passes' }).click();
+  await student.getByLabel('Your first name').fill('sam');
+  await student.getByLabel('Your PIN').fill('1357');
+  await student.getByRole('button', { name: 'Use this device' }).click();
+  await expect(student.getByRole('button', { name: 'I need to leave' })).toBeVisible({ timeout: 20_000 });
+  const code = url.split('/').pop();
+
+  await laptop.reload();
+  await expect(student.getByRole('heading', { name: /Reconnecting to your teacher's computer/ })).toBeVisible({ timeout: 20_000 });
+  await expect(student.getByText("Can't reach this class")).toHaveCount(0);
+  await expect(student.getByRole('button', { name: 'I need to leave' })).toBeVisible({ timeout: 40_000 });
+  // Same class code, and the device is still Sam's.
+  expect(await laptop.evaluate(() => JSON.parse(localStorage.getItem('hallway.account.v2')!).studentLink.room.code)).toBe(code);
+  expect(await student.evaluate(() => Object.keys(localStorage))).toEqual([`hallway.claim.${code}`]);
+});

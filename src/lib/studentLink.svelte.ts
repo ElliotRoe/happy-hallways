@@ -97,6 +97,8 @@ let peer: Peer | null = null;
 /** The address this tab answers the link on, or is trying to. */
 let claimed: string | null = null;
 let retryTimer = 0;
+/** When this computer first found its own code still held: after two minutes, it's no longer this computer's. */
+let heldSince = 0;
 let clockTimer = 0;
 const viewers = new Set<DataConnection>();
 /** The Claim each claimed device holds, by its connection. Recounts set-up devices whenever it changes. */
@@ -189,6 +191,7 @@ export async function serveStudentLink() {
   peer = created;
   const holding = () => localStorage.setItem(holderKey, JSON.stringify({ address, at: Date.now() }));
   created.on('open', () => {
+    heldSince = 0;
     studentLink.status = 'live';
     holding();
     holderTimer = window.setInterval(holding, 5000);
@@ -199,22 +202,30 @@ export async function serveStudentLink() {
     if (error.type !== 'unavailable-id' || peer !== created) return;
     created.destroy();
     peer = null;
-    // Nobody here holds this code, so another teacher's Room has it: take a new one.
+    // Nobody on this computer has ever held this code, so another teacher's Room has it: take a new one.
     const holder = JSON.parse(localStorage.getItem(holderKey) ?? 'null') as { address: string; at: number } | null;
-    if (holder?.address !== address || Date.now() - holder.at > 15_000) {
+    heldSince ||= Date.now();
+    if (holder?.address !== address || Date.now() - heldSince > 120_000) {
+      heldSince = 0;
       claimed = null;
       newRoom();
       return;
     }
-    // Another tab answers the link already. It may also be a reloaded page's
-    // old connection, which the server frees shortly, so look again later.
+    // This computer held it. Either another tab answers it right now, or it's
+    // this page's own connection from before a reload or a sleep, which the
+    // server frees shortly. Never take a new code for that: it would end every
+    // student's setup. Look again soon instead.
+    const anotherTab = Date.now() - holder.at <= 15_000;
     studentLink.status = 'taken';
     studentLink.viewers = Number(localStorage.getItem(viewersKey)) || 0;
     studentLink.setUp = Number(localStorage.getItem(setUpKey)) || 0;
-    retryTimer = window.setTimeout(() => {
-      claimed = null;
-      serveStudentLink();
-    }, 30_000);
+    retryTimer = window.setTimeout(
+      () => {
+        claimed = null;
+        serveStudentLink();
+      },
+      anotherTab ? 30_000 : 5_000,
+    );
   });
   // No-Pass Times start and end by the clock, without anything being saved.
   clockTimer = window.setInterval(pushView, 15_000);
