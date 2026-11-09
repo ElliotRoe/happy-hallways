@@ -559,7 +559,7 @@
     flex: 1;
     display: grid;
     margin-bottom: 24px;
-    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-columns: minmax(0, 1fr) 380px;
     align-items: start;
     gap: 24px;
     max-width: 1320px;
@@ -704,12 +704,14 @@
     align-items: center;
     gap: 8px;
     font-size: 16px;
+    white-space: nowrap;
   }
 
   .kiosk-state {
     display: inline-flex;
     align-items: center;
     gap: 7px;
+    white-space: nowrap;
     color: var(--muted);
     font-size: 13px;
     font-weight: 700;
@@ -740,8 +742,10 @@
 
   .panel-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
+    gap: 4px 12px;
   }
 
   @media (max-width: 1100px) {
