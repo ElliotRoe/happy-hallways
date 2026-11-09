@@ -116,7 +116,7 @@
 {#if !belongsAtDoor}
   <div class="shell">
     {#if ready}<Sidebar />{:else}<aside class="sidebar"></aside>{/if}
-    <main class="main" class:has-drawer={account.classes.length > 0}>
+    <main class="main" class:has-drawer={account.classes.length > 0 && page.url.pathname !== '/'}>
       {@render children()}
     </main>
   </div>
@@ -191,7 +191,7 @@
     gap: 12px;
   }
 
-  /* Room under the last thing on the page, so it can scroll clear of the closed Needs you drawer. */
+  /* Room under the last thing on the page, so it can scroll clear of the closed Needs you drawer. Home fits the screen, so it has none. */
   .main.has-drawer {
     padding-bottom: 56px;
   }
