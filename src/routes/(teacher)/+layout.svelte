@@ -141,7 +141,8 @@
           </div>
         </Toast>
       {/if}
-      {#if onboarding.showChecklist}<GettingStarted />{/if}
+      <!-- Beside Needs you, to its left, rather than stacked on it. -->
+      {#if onboarding.showChecklist}<div class="checklist-spot"><GettingStarted /></div>{/if}
       <!-- Needs you: Requests, Overdue Reminders and No passes, on every page, at the very bottom of the corner. -->
       {#if account.classes.length}<ControlDrawer />{/if}
     </div>
@@ -168,6 +169,19 @@
 
   .corner.with-drawer {
     bottom: 0;
+  }
+
+  .corner.with-drawer .checklist-spot {
+    position: absolute;
+    right: calc(100% + 14px);
+    bottom: 20px;
+  }
+
+  /* No room beside it on a narrow screen: back on top. */
+  @media (max-width: 900px) {
+    .corner.with-drawer .checklist-spot {
+      position: static;
+    }
   }
 
   .update {
