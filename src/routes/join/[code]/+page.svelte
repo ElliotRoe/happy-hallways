@@ -223,7 +223,9 @@
           {#if view.out.length}
             <ul class="tallies">
               {#each view.out as each (each.destination)}
-                <li><DestinationIcon label={each.destination} {list} size={26} /><span>{each.destination}</span><strong>{each.count}</strong></li>
+                <li>
+                  {#if !each.private}<DestinationIcon label={each.destination} {list} size={26} />{/if}<span>{each.destination}</span><strong>{each.count}</strong>
+                </li>
               {/each}
             </ul>
           {:else}

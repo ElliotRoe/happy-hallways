@@ -58,6 +58,12 @@ export type Destination = {
   limit: number | null;
   /** Whether a trip here takes one of the Class Limit's spots. Missing means it does. Only used with a Class Limit. */
   countsTowardClassLimit?: boolean;
+  /**
+   * A Private destination, like the Nurse or the Counselor: wherever students can
+   * see, a trip here shows only as "Out", never where. It never has a Pass Limit
+   * or a Line. The teacher always sees where. See docs/adr/0021.
+   */
+  private?: boolean;
 };
 
 /**
@@ -463,8 +469,8 @@ export type StudentView = {
   status: 'open' | 'no-pass' | 'between' | 'no-class';
   /** During a No-Pass Time: "Passes open at 9:15 AM.", or that the teacher will open them. */
   whenPassesOpen?: string;
-  /** How many students are out, at each destination with anyone there. */
-  out: { destination: string; count: number }[];
+  /** How many students are out, at each destination with anyone there. Private destinations are one "Out", with no name. */
+  out: { destination: string; count: number; private?: boolean }[];
   /** How many are waiting in each Line. Under a Class Limit there is one, with no destination. */
   lines: { destination: string | null; waiting: number }[];
   /** Just enough of each destination to draw its icon. */

@@ -415,9 +415,17 @@ export function studentView(at = Date.now()): StudentView {
     className: findClass(classId)?.name ?? null,
     status,
     ...(noPass ? { whenPassesOpen: whenPassesOpen(noPass) } : {}),
-    out: account.destinations
-      .map((each) => ({ destination: each.label, count: out.filter((pass) => pass.destination === each.label).length }))
-      .filter((each) => each.count),
+    out: [
+      ...account.destinations
+        .filter((each) => !each.private)
+        .map((each) => ({ destination: each.label, count: out.filter((pass) => pass.destination === each.label).length })),
+      // Trips to Private destinations are one "Out", never where (docs/adr/0021).
+      {
+        destination: 'Out',
+        private: true,
+        count: out.filter((pass) => account.destinations.find((each) => each.label === pass.destination)?.private).length,
+      },
+    ].filter((each) => each.count),
     lines: lines.filter((each) => each.waiting),
     destinations: account.destinations.map(({ label, color, icon }) => ({ label, color, icon })),
     claimsOpen: !!account.studentPins,

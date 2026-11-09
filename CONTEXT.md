@@ -31,7 +31,10 @@ _Avoid_: Full name, last initial, student name
 A place a student may go. The teacher keeps one list for all their classes. A
 destination may carry the number of minutes that trip is expected to take; one
 without a time can never be Overdue. Each has a color and an icon, so students
-recognise it at the kiosk.
+recognise it at the kiosk. The kiosk and students' devices show destinations in
+the teacher's order. A Private destination (the Nurse, the Counselor) shows
+wherever students can see only as "Out", never by name or icon, and has no Pass
+Limit or Line; the teacher always sees where.
 _Avoid_: Reason, location, place
 
 **Pass**:

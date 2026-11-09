@@ -146,3 +146,39 @@ test('the teacher adds students to a line, takes one out, and clears it, from Ho
   await lineFor.getByRole('button', { name: 'Clear' }).click();
   await expect(lineFor).toHaveCount(0);
 });
+
+test('a trip to a Private destination shows only as "Out" on the kiosk, but the teacher sees where', async ({ page }) => {
+  await setUp(page, {
+    destinations: [
+      { id: 'b1', label: 'Bathroom 1', minutes: 5, color: 'blue', icon: 'toilet', limit: 1 },
+      { id: 'nurse', label: 'Nurse', minutes: 15, color: 'pink', icon: 'stethoscope', limit: null, private: true },
+    ],
+  });
+  await page.goto('/door');
+  await page.getByRole('button', { name: /Ana B\./ }).click();
+  await page.getByRole('button', { name: /^Nurse/ }).click();
+  await expect(page.getByText('Ana B.: you can go')).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
+  const ana = page.getByRole('button', { name: /Ana B\./ });
+  await expect(ana).toContainText('Out');
+  await expect(ana).not.toContainText('Nurse');
+
+  // The teacher still sees where.
+  await page.evaluate(() => {
+    const account = JSON.parse(localStorage.getItem('hallway.account')!);
+    account.kiosk.locked = false;
+    localStorage.setItem('hallway.account', JSON.stringify(account));
+  });
+  await page.goto('/');
+  await expect(page.getByRole('row', { name: /Ana B\./ })).toContainText('Nurse');
+});
+
+test('making a destination Private takes away its limit', async ({ page }) => {
+  await setUp(page);
+  await page.goto('/destinations');
+  await page.getByRole('button', { name: /^Bathroom 1/ }).click();
+  await page.getByRole('checkbox', { name: /^Private/ }).check();
+  await expect(page.getByLabel('Students here at once')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('button', { name: /^Bathroom 1/ })).toContainText('Private, no limit');
+});

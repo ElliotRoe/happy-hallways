@@ -1,5 +1,5 @@
 ---
-status: amended by ADR-0016
+status: amended by ADR-0016 and ADR-0021
 ---
 
 # Kiosk mode shows who is currently out

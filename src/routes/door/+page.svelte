@@ -31,6 +31,7 @@
     lineSpotFor,
     needsArrival,
     needsPin,
+    shownTo,
     noPassNow,
     onSchedule,
     openPassFor,
@@ -432,11 +433,16 @@
             <span class="name-text">{student.name}</span>
             {#if pass}
               <span class="name-status out-status">
-                <DestinationIcon label={pass.destination} list={destinations} size={22} />Out · {pass.destination}
+                {#if shownTo(pass.destination)}
+                  <DestinationIcon label={pass.destination} list={destinations} size={22} />Out · {pass.destination}
+                {:else}
+                  <!-- A Private destination: only "Out" (docs/adr/0021). -->
+                  Out
+                {/if}
               </span>
             {:else if asked}
               <span class="name-status asked-status">
-                <DestinationIcon label={asked.destination} list={destinations} size={22} />Asked your teacher
+                {#if shownTo(asked.destination)}<DestinationIcon label={asked.destination} list={destinations} size={22} />{/if}Asked your teacher
               </span>
             {:else if isNext && spot}
               <span class="name-status next-status">
@@ -579,7 +585,7 @@
         <h2 id="asked-title">{askedFor.name}</h2>
         {#if asked}
           <p class="lede">
-            You asked to go to {asked.destination}. If your teacher says yes, your name will say you’re out. Then go.
+            You asked {shownTo(asked.destination) ? `to go to ${asked.destination}` : 'your teacher'}. If your teacher says yes, your name will say you’re out. Then go.
           </p>
         {/if}
         <div class="choices">

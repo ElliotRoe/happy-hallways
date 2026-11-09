@@ -27,6 +27,8 @@
   let studentLimit = $state<number | null>(destination ? destination.limit : 1);
   // svelte-ignore state_referenced_locally
   let countsTowardClass = $state(destination?.countsTowardClassLimit !== false);
+  // svelte-ignore state_referenced_locally
+  let isPrivate = $state(!!destination?.private);
   /** Only the way limits work now is shown; the other way's setting is kept for if the teacher switches back. */
   const hasClassLimit = $derived(account.limitMode === 'class');
   const limitChoices = $derived([...new Set([1, 2, 3, 4, 5, 6, ...(studentLimit ? [studentLimit] : [])])].sort((a, b) => a - b));
@@ -57,9 +59,11 @@
       error = 'Minutes should be between 1 and 120, or left empty for no time limit.';
       return;
     }
-    const saved: Destination = { id: destination?.id ?? newId(), label: name, minutes: limit, color, icon, limit: studentLimit };
+    // A Private destination never has a limit or a line (docs/adr/0021).
+    const saved: Destination = { id: destination?.id ?? newId(), label: name, minutes: limit, color, icon, limit: isPrivate ? null : studentLimit };
     if (!counts) saved.countsTowardAllowance = false;
-    if (!countsTowardClass) saved.countsTowardClassLimit = false;
+    if (!countsTowardClass || isPrivate) saved.countsTowardClassLimit = false;
+    if (isPrivate) saved.private = true;
     saveDestination(saved);
     onClose();
   }
@@ -94,7 +98,20 @@
       <span class="muted small" style="font-weight:500">Leave it empty if this trip has no time limit. It'll never show as overdue.</span>
     </label>
 
-    {#if hasClassLimit}
+    <label class="check">
+      <input type="checkbox" bind:checked={isPrivate} />
+      <span>
+        Private
+        <span class="muted small">
+          For places like the Nurse or the Counselor. Students only ever see that someone is out, never that they went
+          here. You still see it. A private destination has no limit or line.
+        </span>
+      </span>
+    </label>
+
+    {#if isPrivate}
+      <!-- No limit or line to set: a line would show the room who's going here. -->
+    {:else if hasClassLimit}
       <label class="check">
         <input type="checkbox" bind:checked={countsTowardClass} />
         <span>

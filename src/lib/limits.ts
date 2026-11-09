@@ -15,7 +15,8 @@ type LimitRules = { destinations: Destination[]; limitMode?: LimitMode; classLim
 export const classLine = '(class)';
 
 export function countsTowardClassLimit(destination: Destination) {
-  return destination.countsTowardClassLimit !== false;
+  // A Private destination is never limited (docs/adr/0021).
+  return !destination.private && destination.countsTowardClassLimit !== false;
 }
 
 /**
@@ -24,7 +25,8 @@ export function countsTowardClassLimit(destination: Destination) {
  */
 export function limitFor(rules: LimitRules, destination: string): { line: string; limit: number } | null {
   const place = rules.destinations.find((each) => each.label === destination);
-  if (!place) return null;
+  // A Private destination never has a limit or a Line: a line would show the room who's going there.
+  if (!place || place.private) return null;
   if (rules.limitMode === 'class') {
     return countsTowardClassLimit(place) ? { line: classLine, limit: rules.classLimit ?? 1 } : null;
   }
@@ -38,6 +40,7 @@ export function lineOf(rules: LimitRules, destination: string) {
 
 /** "1 at a time" or "No limit"; or, under a Class Limit, whether the destination counts toward it. */
 export function limitText(rules: LimitRules, destination: Destination) {
+  if (destination.private) return 'Private, no limit';
   if (rules.limitMode === 'class') return countsTowardClassLimit(destination) ? 'Counts toward class limit' : 'Not limited';
   return destination.limit === null ? 'No limit' : `${destination.limit} at a time`;
 }

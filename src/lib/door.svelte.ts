@@ -191,6 +191,14 @@ function limitAt(destination: string) {
   return current ? limitFor(current, destination) : null;
 }
 
+/**
+ * How a destination may be named where students can see: its name, or just
+ * "Out" for a Private one (docs/adr/0021). The teacher's own screens always use the real name.
+ */
+export function shownTo(destination: string) {
+  return destinationNamed(destination)?.private ? null : destination;
+}
+
 /** Whether a trip there has a Pass Limit, and so a Line. */
 export function isLimited(destination: string) {
   return !!limitAt(destination);
@@ -607,7 +615,7 @@ function startPass(studentId: string, destination: string, approvedBy?: 'home' |
   showNotice(
     {
       kind: 'approved',
-      title: `${student.name}: ${destination}`,
+      title: shownTo(destination) ? `${student.name}: ${destination}` : `${student.name}: you can go`,
       message: onlyWarned
         ? `${allowance!.text} You can still go, and your teacher will see it was an extra pass. ${back}`
         : pass.minutes
@@ -644,7 +652,7 @@ function ask(studentId: string, destination: string) {
     {
       kind: 'returned',
       eyebrow: 'Asked your teacher',
-      title: `${student.name}: ${destination}`,
+      title: shownTo(destination) ? `${student.name}: ${destination}` : student.name,
       message: 'If your teacher says yes, your name will say you’re out. Then go.',
     },
     6,
