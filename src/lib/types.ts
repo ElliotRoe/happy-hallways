@@ -163,6 +163,8 @@ export type Class = {
   attendance?: AttendanceOptions;
   /** What students can see on the kiosk and on their devices. Each is on unless set false. See docs/adr/0022. */
   visibility?: Partial<ClassVisibility>;
+  /** With Student PINs on, a class can still skip asking for them, say for the youngest grades. Each student keeps their one PIN. */
+  pinsOff?: true;
   createdAt: string;
 };
 

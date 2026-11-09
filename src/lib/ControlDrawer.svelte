@@ -12,12 +12,13 @@
   } from './account.svelte';
   import { clock } from './clock.svelte';
   import DestinationIcon from './DestinationIcon.svelte';
-  import { answerRequest } from './door.svelte';
+  import { activeDoorClass, answerRequest } from './door.svelte';
   import Icon from './Icon.svelte';
   import { kioskOnline } from './link.svelte';
   import { duration, isOverdue } from './passes';
   import { overdueChime } from './sound';
   import Modal from './Modal.svelte';
+  import StartPassDialog from './StartPassDialog.svelte';
   import { slide } from 'svelte/transition';
   import type { Block, PassRequest } from './types';
 
@@ -39,6 +40,7 @@
   const waiting = $derived(requests.length + overdue.length);
   const openKey = 'hallway.drawer-open';
   let open = $state(readOpen());
+  let startingPass = $state(false);
   // What this drawer last saw. Starting from what's there on load means arriving at a page doesn't count as news.
   // svelte-ignore state_referenced_locally
   let lastCount = waiting;
@@ -188,16 +190,25 @@
       {/if}
 
       <!-- Always the last thing in the drawer. -->
-      {#if account.manualNoPass}
-        <button class="btn btn-primary passes" onclick={endNoPassTime}><Icon name="check" size={16} />Open passes</button>
-      {:else}
-        <button class="btn passes" onclick={startNoPassTime} title="Stop students starting passes until you open them again">
-          <Icon name="ban" size={16} />No passes now
-        </button>
-      {/if}
+      <div class="drawer-actions">
+        {#if activeDoorClass()}
+          <button class="btn btn-primary passes" onclick={() => (startingPass = true)}><Icon name="plus" size={16} />Start a pass</button>
+        {/if}
+        {#if account.manualNoPass}
+          <button class="btn passes" onclick={endNoPassTime}><Icon name="check" size={16} />Open passes</button>
+        {:else}
+          <button class="btn passes" onclick={startNoPassTime} title="Stop students starting passes until you open them again">
+            <Icon name="ban" size={16} />No passes now
+          </button>
+        {/if}
+      </div>
     </div>
   {/if}
 </section>
+
+{#if startingPass}
+  <StartPassDialog onClose={() => (startingPass = false)} />
+{/if}
 
 {#if looking}
   {@const request = looking}
@@ -426,7 +437,13 @@
     text-align: center;
   }
 
+  .drawer-actions {
+    display: flex;
+    gap: 8px;
+  }
+
   .passes {
+    flex: 1;
     justify-content: center;
   }
 

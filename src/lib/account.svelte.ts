@@ -1197,6 +1197,23 @@ export function dismissRosterMerge() {
 // What students can see (docs/adr/0022)
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether a class asks students for their PIN: at the kiosk, for "Just arrived?",
+ * and to set up their own device. Student PINs are one switch for every class,
+ * and each class can turn asking off.
+ */
+export function asksForPins(cls: { pinsOff?: true } | null | undefined) {
+  return !!account.studentPins && !!cls && !cls.pinsOff;
+}
+
+export function setAsksForPins(classId: string, on: boolean) {
+  const cls = findClass(classId);
+  if (!cls) return;
+  if (on) delete cls.pinsOff;
+  else cls.pinsOff = true;
+  save();
+}
+
 /** What students can see in a class: everything, unless the teacher turned something off. */
 export function visibilityOf(cls: { visibility?: Partial<ClassVisibility> } | null | undefined): ClassVisibility {
   return { names: true, where: true, lineNames: true, ...cls?.visibility };
@@ -1748,7 +1765,7 @@ function arrivalsOnTheDoor() {
     classId: cls.id,
     studentIds: marks.filter((mark) => mark.arrivedAt).map((mark) => mark.studentId),
     absentCount: marks.filter((mark) => mark.status === 'absent').length,
-    pinsOn: !!account.studentPins,
+    pinsOn: asksForPins(cls),
   };
 }
 
@@ -1771,7 +1788,7 @@ export function doorSetup(): DoorSetup {
           name: displayName(student),
           exempt: skipsAllowance(student) || undefined,
           alwaysGo: student.alwaysGo,
-          pin: account.studentPins ? student.pin : undefined,
+          pin: asksForPins(cls) ? student.pin : undefined,
         }))
         // A to Z by the name on the tile, so a student finds theirs quickly.
         .sort((a, b) => a.name.localeCompare(b.name)),

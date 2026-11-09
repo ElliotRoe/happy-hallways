@@ -32,9 +32,10 @@
   import PassMarks from '#lib/PassMarks.svelte';
   import QuietScene, { seasons, type Season } from '#lib/QuietScene.svelte';
   import { page } from '$app/state';
-  import { currentRoom, studentLink, studentLinkUrl } from '#lib/studentLink.svelte.ts';
+  import { currentRoom, devicesText, studentLink, studentLinkUrl } from '#lib/studentLink.svelte.ts';
   import RoomBoard from '#lib/RoomBoard.svelte';
-  import { activeDoorClass, isLimited, line, perform, setup, startPassFromHome } from '#lib/door.svelte.ts';
+  import StartPassDialog from '#lib/StartPassDialog.svelte';
+  import { perform, startPassFromHome } from '#lib/door.svelte.ts';
   import RoomCode from '#lib/RoomCode.svelte';
   import { popOutRoom } from '#lib/popOut.ts';
   import { duration, hasRealDuration, isOverdue, now, time } from '#lib/passes.ts';
@@ -216,44 +217,7 @@
    * removing and clearing go through the same rules as the kiosk's taps.
    */
   const quiet = () => {};
-  let sendStudent = $state('');
-  let sendDestination = $state('');
-  /** Anyone in the class who isn't out can be sent from here, wherever they're going. */
-  const sendChoices = $derived.by(() => {
-    const cls = activeDoorClass();
-    const outIds = new Set(openPasses(cls?.id ?? undefined).map((pass) => pass.studentId));
-    const waitingIds = new Set(line().map((spot) => spot.studentId));
-    return {
-      students: (cls?.students ?? []).filter((student) => !outIds.has(student.id)),
-      destinations: (setup()?.destinations ?? []).map((destination) => destination.label),
-      waitingIds,
-    };
-  });
-  $effect(() => {
-    if (!sendChoices.destinations.includes(sendDestination)) sendDestination = sendChoices.destinations[0] ?? '';
-  });
-  /** Only a destination with a limit has a line, and an Always-Go student never waits in one. */
-  const canLineUp = $derived.by(() => {
-    const student = sendChoices.students.find((each) => each.id === sendStudent);
-    return (
-      !!account.lineEnabled && !!student && !student.alwaysGo && !sendChoices.waitingIds.has(student.id) && isLimited(sendDestination)
-    );
-  });
-
-  /** The teacher lets a student go from here: no device needed, and no waiting for a spot (docs/adr/0014). */
-  function sendNow(event: SubmitEvent) {
-    event.preventDefault();
-    if (!sendStudent || !sendDestination) return;
-    startPassFromHome(sendStudent, sendDestination);
-    sendStudent = '';
-  }
-
-  function addToLine() {
-    if (!canLineUp) return;
-    perform({ kind: 'join', studentId: sendStudent, destination: sendDestination }, quiet);
-    sendStudent = '';
-  }
-
+  let startingPass = $state(false);
   function removeFromLine(studentId: string) {
     perform({ kind: 'leave', studentId }, quiet);
   }
@@ -329,23 +293,44 @@
         </section>
 
         <section class="card">
-          <h2>Right now</h2>
+          <div class="right-now-head">
+            <h2>Right now</h2>
+            <button class="btn btn-small btn-primary" onclick={() => (startingPass = true)}><Icon name="plus" size={14} />Start a pass</button>
+          </div>
           {#if !out.length && !lines.length}<p class="muted">Everyone's in class.</p>{/if}
           {#if out.length}
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Student</th><th>Where</th><th>Left</th><th class="num">Minutes</th><th></th></tr>
+                  <tr><th>Student</th><th>Where</th><th>Left</th><th>Minutes</th><th></th></tr>
                 </thead>
                 <tbody>
                   {#each out as pass (pass.id)}
+                    {@const late = isOverdue(pass, at)}
                     <tr>
-                      <td><strong>{pass.studentName}</strong> <PassMarks {pass} /></td>
+                      <td><span class="who"><strong>{pass.studentName}</strong> <PassMarks {pass} compact /></span></td>
                       <td><span class="destination-chip"><DestinationIcon label={pass.destination} size={24} />{pass.destination}</span></td>
-                      <td>{time(pass.outAt)}</td>
-                      <td class="num">
-                        {#if isOverdue(pass, at)}<span class="badge warn">Overdue</span>{/if}
-                        {duration(pass, at)}{pass.minutes ? ` of ${pass.minutes}` : ''}
+                      <td class="nowrap">{time(pass.outAt)}</td>
+                      <td class="nowrap">
+                        <span class="minutes" class:late title={late ? 'Overdue' : undefined}>
+                          {#if pass.minutes}
+                            {@const share = Math.min(duration(pass, at) / pass.minutes, 1)}
+                            <svg class="pie" viewBox="0 0 20 20" aria-hidden="true">
+                              <circle cx="10" cy="10" r="9" />
+                              {#if share >= 1}
+                                <circle class="slice" cx="10" cy="10" r="9" />
+                              {:else}
+                                <path
+                                  class="slice"
+                                  d="M10 10 L10 1 A9 9 0 {share > 0.5 ? 1 : 0} 1 {10 + 9 * Math.sin(share * 2 * Math.PI)} {10 - 9 * Math.cos(share * 2 * Math.PI)} Z"
+                                />
+                              {/if}
+                            </svg>
+                            {duration(pass, at)} of {pass.minutes} min{#if late}<span class="sr-only"> (overdue)</span>{/if}
+                          {:else}
+                            {duration(pass, at)} min
+                          {/if}
+                        </span>
                       </td>
                       <td class="num">
                         <button class="btn btn-small" onclick={() => markReturned(pass.id)}>
@@ -381,22 +366,6 @@
               </ol>
             </div>
           {/each}
-          {#if sendChoices.students.length && sendChoices.destinations.length}
-            <!-- The teacher's computer keeps passes and the Line (docs/adr/0014), so the teacher can send someone or line them up here. -->
-            <form class="add-to-line" onsubmit={sendNow}>
-              <select aria-label="Student" bind:value={sendStudent}>
-                <option value="" disabled>Send a student…</option>
-                {#each sendChoices.students as student (student.id)}<option value={student.id}>{student.name}</option>{/each}
-              </select>
-              <select aria-label="Going to" bind:value={sendDestination}>
-                {#each sendChoices.destinations as destination (destination)}<option value={destination}>{destination}</option>{/each}
-              </select>
-              <button class="btn btn-small" disabled={!sendStudent}>Start pass</button>
-              {#if account.lineEnabled}
-                <button type="button" class="btn btn-small btn-quiet" disabled={!canLineUp} onclick={addToLine}>Add to line</button>
-              {/if}
-            </form>
-          {/if}
         </section>
 
         <section class="this-class-log">
@@ -484,7 +453,7 @@
           </h3>
           {#if account.studentLink?.open}
             <span class="kiosk-state">
-              <span class="status-dot" class:live={studentLink.viewers > 0} aria-hidden="true"></span>{studentLink.setUp} set up · {studentLink.viewers - studentLink.setUp} watching
+              <span class="status-dot" class:live={studentLink.viewers > 0} aria-hidden="true"></span>{devicesText()}
             </span>
           {/if}
         </div>
@@ -514,6 +483,8 @@
 {/if}
 
 <div class="board-holder" bind:this={board}><RoomBoard /></div>
+
+{#if startingPass}<StartPassDialog onClose={() => (startingPass = false)} />{/if}
 
 {#if pairing}
   <PairingDialog
@@ -551,18 +522,59 @@
     justify-content: space-between;
   }
 
+  .right-now-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .who {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  .minutes {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .minutes.late {
+    color: var(--warn);
+    font-weight: 700;
+  }
+
+  .pie {
+    width: 18px;
+    height: 18px;
+    flex: none;
+  }
+
+  .pie circle {
+    fill: var(--surface-sunk);
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+
+  .pie .slice {
+    fill: var(--accent);
+    stroke: none;
+  }
+
+  .late .pie .slice {
+    fill: var(--warn);
+  }
+
   .line-list .start-now {
     margin-left: auto;
-  }
-
-  .add-to-line {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .add-to-line select {
-    width: auto;
   }
 
   /* Only shown while it's full screen. */

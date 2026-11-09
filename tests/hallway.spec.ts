@@ -1402,7 +1402,7 @@ test('students watch who is out and the line, live, from the student link', asyn
   await expect(student.getByRole('heading', { name: 'Period 6' })).toBeVisible({ timeout: 30_000 });
   await expect(student.getByText('Passes open')).toBeVisible();
   await expect(student.getByText("Everyone's in class.")).toBeVisible();
-  await expect(laptop.getByRole('status').filter({ hasText: '0 set up · 1 watching' })).toBeVisible({ timeout: 10_000 });
+  await expect(laptop.getByRole('status').filter({ hasText: '1 device joined' })).toBeVisible({ timeout: 10_000 });
 
   // A pass at the kiosk reaches the laptop, and from there the student's page.
   await tablet.getByRole('button', { name: /Maya Ca\./ }).click();
@@ -1428,7 +1428,7 @@ test('students watch who is out and the line, live, from the student link', asyn
   // Home shows the link, and who's watching.
   await goHome(laptop);
   await expect(laptop.locator('.devices-card').getByLabel(`Class code ${url.split('/').pop()}`)).toBeVisible();
-  await expect(laptop.locator('.devices-card').getByText('0 set up · 1 watching')).toBeVisible();
+  await expect(laptop.locator('.devices-card').getByText('1 device joined')).toBeVisible();
 
   // Closing it tells the student; opening it again brings the page back by itself.
   await laptop.getByRole('link', { name: 'Student devices', exact: true }).click();
@@ -1446,9 +1446,9 @@ test('students watch who is out and the line, live, from the student link', asyn
   await expect(laptop.getByText('Nobody is viewing right now')).toBeVisible({ timeout: 20_000 });
   await student.goto(newUrl);
   await expect(student.getByRole('region', { name: 'Waiting in line' })).toContainText('Bathroom 1', { timeout: 30_000 });
-  await expect(laptop.getByRole('status').filter({ hasText: '0 set up · 1 watching' })).toBeVisible({ timeout: 10_000 });
+  await expect(laptop.getByRole('status').filter({ hasText: '1 device joined' })).toBeVisible({ timeout: 10_000 });
   await student.goto(url);
-  await expect(student.getByRole('heading', { name: "Can't reach this class" })).toBeVisible({
+  await expect(student.getByRole('heading', { name: /Can't reach this class|This code has ended/ })).toBeVisible({
     timeout: 40_000,
   });
 });
@@ -1515,15 +1515,15 @@ test('with two tabs open, one answers the student link, and the other takes over
 
   await student.goto(url);
   await expect(student.getByRole('heading', { name: 'Period 8' })).toBeVisible({ timeout: 30_000 });
-  await expect(secondTab.getByRole('status').filter({ hasText: '0 set up · 1 watching' })).toBeVisible({ timeout: 10_000 });
+  await expect(secondTab.getByRole('status').filter({ hasText: '1 device joined' })).toBeVisible({ timeout: 10_000 });
 
-  // The tab answering closes; the student's page says so, then finds the other tab.
+  // The tab answering closes; the student's page says it's reconnecting, then finds the other tab.
   await firstTab.close();
-  await expect(student.getByRole('heading', { name: "Can't reach this class" })).toBeVisible({
+  await expect(student.getByRole('heading', { name: "Reconnecting to your teacher's computer…" })).toBeVisible({
     timeout: 30_000,
   });
   await expect(student.getByRole('heading', { name: 'Period 8' })).toBeVisible({ timeout: 60_000 });
-  await expect(secondTab.getByRole('status').filter({ hasText: '0 set up · 1 watching' })).toBeVisible({ timeout: 10_000 });
+  await expect(secondTab.getByRole('status').filter({ hasText: '1 device joined' })).toBeVisible({ timeout: 10_000 });
 });
 
 /** Taps a PIN on the kiosk's keypad, then Go. */
@@ -1532,6 +1532,22 @@ async function tapPin(page: Page, pin: string) {
   for (const digit of pin) await pad.getByRole('button', { name: digit, exact: true }).click();
   await pad.getByRole('button', { name: 'Go' }).click();
 }
+
+test('a class can stop asking for PINs, so its students just tap their name', async ({ page }) => {
+  await createClassWithRoster(page, 'Pre-K');
+  await page.getByRole('link', { name: 'Roster', exact: true }).click();
+  await page.getByRole('switch', { name: 'Students use PINs' }).check();
+  await page.locator('.sidebar .class-row .nav-link', { hasText: 'Pre-K' }).click();
+  await page.getByRole('navigation', { name: 'Pre-K' }).getByRole('link', { name: 'Settings' }).click();
+  await page.getByRole('switch', { name: 'Ask for PINs in this class' }).uncheck();
+
+  await setPin(page);
+  await page.getByRole('button', { name: 'Use this computer' }).click();
+  await page.getByRole('button', { name: 'Open kiosk screen' }).click();
+  await page.getByRole('button', { name: /Maya Ch\./ }).click();
+  await expect(page.getByText('Type your PIN')).toBeHidden();
+  await expect(page.getByText('Where are you going?')).toBeVisible();
+});
 
 test('with PINs on, students type their own PIN at the kiosk, and the teacher PIN lets a forgetful one through', async ({ page }) => {
   await createClassWithRoster(page, 'Period 8');

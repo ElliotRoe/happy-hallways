@@ -2,6 +2,7 @@ import type { DataConnection, Peer } from 'peerjs';
 import {
   account,
   answered,
+  asksForPins,
   classStudents,
   doorSetup,
   findClass,
@@ -528,9 +529,10 @@ function arriveLate(firstName: string, pin: string) {
   const absent = classStudents(cls).filter(
     (student) => student.status === 'current' && isAbsent(cls.id, student.id) && student.firstName.toLowerCase() === typed,
   );
-  const match = account.studentPins ? absent.filter((student) => !!student.pin && student.pin === pin) : absent;
+  const pins = asksForPins(cls);
+  const match = pins ? absent.filter((student) => !!student.pin && student.pin === pin) : absent;
   if (match.length !== 1) {
-    if (account.studentPins) {
+    if (pins) {
       lateTries = [...lateTries.filter((at) => now - at < 60_000), now];
       if (lateTries.length >= 5) latePausedUntil = now + 60_000;
       return askTeacher("That didn't match", 'Check your first name and PIN, or ask your teacher.');

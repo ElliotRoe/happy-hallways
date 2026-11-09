@@ -13,7 +13,7 @@
   import ConfirmDialog from '#lib/ConfirmDialog.svelte';
   import Icon from '#lib/Icon.svelte';
   import StudentDeviceArt from '#lib/StudentDeviceArt.svelte';
-  import { currentRoom, maxViewers, studentLink } from '#lib/studentLink.svelte.ts';
+  import { currentRoom, devicesText, maxViewers, studentLink } from '#lib/studentLink.svelte.ts';
   import StudentLinkCopy from '#lib/StudentLinkCopy.svelte';
 
   /**
@@ -36,11 +36,11 @@
   );
   let confirmNewCode = $state(false);
 
-  /** Devices in the Room: set up (holding a Claim) and Watching. */
+  /** Devices in the Room, and how many hold a Claim. */
   const viewing = $derived(
     studentLink.viewers === 0
       ? 'Nobody is viewing right now'
-      : `${studentLink.setUp} set up · ${studentLink.viewers - studentLink.setUp} watching`,
+      : devicesText(),
   );
 </script>
 
@@ -138,7 +138,7 @@
               <h2 id="claims-title">Set-up devices</h2>
               <p class="muted small">
                 Each acts as its student until the class ends, or until you, or they, stop it. One device per student.
-                {#if studentLink.viewers > studentLink.setUp}{studentLink.viewers - studentLink.setUp} more watching, not set up.{/if}
+                {#if studentLink.viewers > studentLink.setUp}{studentLink.viewers - studentLink.setUp} more joined and can only look.{/if}
               </p>
             </div>
             {#if claims.length}

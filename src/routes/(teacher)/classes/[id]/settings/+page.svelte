@@ -2,9 +2,12 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import {
+    account,
+    asksForPins,
     classPasses,
     deleteClass,
     findClass,
+    setAsksForPins,
     setVisibility,
     updateClass,
     visibilityOf,
@@ -65,9 +68,37 @@
       <input value={cls.name} onchange={rename} />
     </label>
     <p class="muted small">
-      Student PINs are on the <a href="/roster">Roster</a>, and attendance in <a href="/pass-options">Pass Options</a>, for all your classes at once. When this class is on the kiosk,
+      Student PINs are turned on in the <a href="/roster">Roster</a>, and attendance in <a href="/pass-options">Pass Options</a>, for all your classes at once. When this class is on the kiosk,
       and its no-pass times, are set in <a href="/schedule">Schedule</a>.
     </p>
+  </section>
+
+  <section class="card" aria-labelledby="pins-title">
+    <h2 id="pins-title">PINs</h2>
+    <div class="option-row">
+      <div>
+        <h3>Ask for PINs in this class</h3>
+        <p class="muted small">
+          {#if account.studentPins}
+            Off, students in this class just tap their name, at the kiosk and for “Just arrived?”, and can't set up their own
+            device. They keep their PIN for your other classes.
+          {:else}
+            Student PINs are off for all your classes. Turn them on in the <a href="/roster">Roster</a> first.
+          {/if}
+        </p>
+      </div>
+      <label class="switch">
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label="Ask for PINs in this class"
+          disabled={!account.studentPins}
+          checked={asksForPins(cls)}
+          onchange={(event) => setAsksForPins(cls.id, event.currentTarget.checked)}
+        />
+        <span aria-hidden="true"></span>
+      </label>
+    </div>
   </section>
 
   <section class="card" aria-labelledby="sees-title">

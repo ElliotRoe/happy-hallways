@@ -129,15 +129,21 @@ test('the teacher can leave a note on a pass, shown in History and in the CSV', 
   expect(csv).toContain('Stopped at the office');
 });
 
+/** The teacher's own Start a pass pop-up, from Right now on Home. */
+async function fromStartPass(page: Page, name: string, destination: string, button: 'Start pass' | 'Add to line') {
+  await page.locator('.right-now-head').getByRole('button', { name: 'Start a pass' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Start a pass' });
+  await dialog.getByLabel('Student').selectOption({ label: name });
+  await dialog.getByLabel('Going to').selectOption(destination);
+  await dialog.getByRole('button', { name: button }).click();
+  await expect(dialog).toBeHidden();
+}
+
 test('the teacher adds students to a line, takes one out, and clears it, from Home', async ({ page }) => {
   await setUp(page);
   await page.goto('/');
   const lineFor = page.locator('.stack', { hasText: 'In line for Bathroom 1' });
-  for (const name of ['Ana B.', 'Max C.']) {
-    await page.getByLabel('Student', { exact: true }).selectOption({ label: name });
-    await page.getByLabel('Going to').selectOption('Bathroom 1');
-    await page.getByRole('button', { name: 'Add to line' }).click();
-  }
+  for (const name of ['Ana B.', 'Max C.']) await fromStartPass(page, name, 'Bathroom 1', 'Add to line');
   await expect(lineFor.locator('.line-list li')).toHaveCount(2);
   await expect(lineFor.locator('.line-list li').first()).toContainText('Ana B.');
 
@@ -151,24 +157,22 @@ test('the teacher adds students to a line, takes one out, and clears it, from Ho
 test('the teacher starts a pass from Home, for a student with no device or the next one in line', async ({ page }) => {
   await setUp(page);
   await page.goto('/');
-  // A student whose computer is dead: the teacher sends them straight from Home.
-  await page.getByLabel('Student', { exact: true }).selectOption({ label: 'Ana B.' });
-  await page.getByLabel('Going to').selectOption('Bathroom 1');
-  await page.getByRole('button', { name: 'Start pass' }).click();
+  // A student whose computer is dead: the teacher sends them from their own computer.
+  await fromStartPass(page, 'Ana B.', 'Bathroom 1', 'Start pass');
   await expect(page.getByRole('row', { name: /Ana B\./ }).getByRole('button', { name: 'Mark back' })).toBeVisible();
 
   // Bathroom 1 is now full and Max C. waits; Ana is taking too long, so the teacher lets Max go anyway.
-  await page.getByLabel('Student', { exact: true }).selectOption({ label: 'Max C.' });
-  await page.getByLabel('Going to').selectOption('Bathroom 1');
-  await page.getByRole('button', { name: 'Add to line' }).click();
+  await fromStartPass(page, 'Max C.', 'Bathroom 1', 'Add to line');
   await page.getByRole('button', { name: "Start Max C.'s pass now" }).click();
-  await expect(page.getByRole('row', { name: /Max C\./ }).getByRole('button', { name: 'Mark back' })).toBeVisible();
+  const max = page.getByRole('row', { name: /Max C\./ });
+  await expect(max.getByRole('button', { name: 'Mark back' })).toBeVisible();
+  await expect(max.getByRole('img', { name: 'Skipped line' })).toBeVisible();
   await expect(page.locator('.line-list')).toHaveCount(0);
 
   await page.getByRole('link', { name: 'History', exact: true }).click();
-  const max = page.getByRole('row', { name: /Max C\./ });
-  await expect(max).toContainText('Skipped line');
-  await expect(max).toContainText('Approved');
+  const inHistory = page.getByRole('row', { name: /Max C\./ });
+  await expect(inHistory).toContainText('Skipped line');
+  await expect(inHistory).toContainText('Approved');
 });
 
 test('a trip to a Private destination shows only as "Out" on the kiosk, but the teacher sees where', async ({ page }) => {

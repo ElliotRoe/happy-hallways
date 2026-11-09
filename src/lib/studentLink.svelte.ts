@@ -2,6 +2,7 @@ import type { DataConnection, Peer } from 'peerjs';
 import {
   account,
   addClaim,
+  asksForPins,
   attendanceMark,
   classStudents,
   isAbsent,
@@ -45,7 +46,7 @@ import type { LinkAction, OwnView, StudentLinkMessage, StudentMessage, StudentVi
  */
 
 /** Each student's browser holds its own connection to this computer, so there is a limit. Claimed devices are never turned away. */
-export const maxViewers = 60;
+export const maxViewers = 100;
 /** Wrong PINs one device may try in a row before it has to wait a minute. */
 const maxPinTries = 5;
 const viewersKey = 'hallway.student-link-viewers';
@@ -65,6 +66,13 @@ export const studentLink = $state({
 });
 
 /** The Room students join right now, if the link is open and a class is on. */
+/** How many devices are in the Room, and how many of those hold a Claim, in the teacher's words. */
+export function devicesText() {
+  const { viewers, setUp } = studentLink;
+  const joined = `${viewers} ${viewers === 1 ? 'device' : 'devices'} joined`;
+  return setUp ? `${joined} · ${setUp} can take passes` : joined;
+}
+
 export function currentRoom() {
   return account.studentLink?.open ? (account.studentLink.room ?? null) : null;
 }
@@ -196,26 +204,31 @@ export async function serveStudentLink() {
     holding();
     holderTimer = window.setInterval(holding, 5000);
   });
-  created.on('disconnected', () => (studentLink.status = 'connecting'));
+  // A connection this page has already replaced closes a moment later: that says nothing about the new one.
+  created.on('disconnected', () => {
+    if (peer === created) studentLink.status = 'connecting';
+  });
   created.on('connection', welcome);
   created.on('error', (error) => {
     if (error.type !== 'unavailable-id' || peer !== created) return;
     created.destroy();
     peer = null;
-    // Nobody on this computer has ever held this code, so another teacher's Room has it: take a new one.
     const holder = JSON.parse(localStorage.getItem(holderKey) ?? 'null') as { address: string; at: number } | null;
-    heldSince ||= Date.now();
-    if (holder?.address !== address || Date.now() - heldSince > 120_000) {
+    // A code nobody on this computer has held is another teacher's Room: take a new one.
+    // If this computer held it, either another tab answers it right now, or it's
+    // this page's own connection from before a reload or a sleep, which the
+    // server frees shortly. Never take a new code for either: it would end every
+    // student's setup. Look again soon instead. Only a code nobody here has
+    // answered for two whole minutes is taken to be someone else's.
+    const anotherTab = holder?.address === address && Date.now() - holder.at <= 15_000;
+    if (anotherTab) heldSince = 0;
+    else heldSince ||= Date.now();
+    if (holder?.address !== address || (!anotherTab && Date.now() - heldSince > 120_000)) {
       heldSince = 0;
       claimed = null;
       newRoom();
       return;
     }
-    // This computer held it. Either another tab answers it right now, or it's
-    // this page's own connection from before a reload or a sleep, which the
-    // server frees shortly. Never take a new code for that: it would end every
-    // student's setup. Look again soon instead.
-    const anotherTab = Date.now() - holder.at <= 15_000;
     studentLink.status = 'taken';
     studentLink.viewers = Number(localStorage.getItem(viewersKey)) || 0;
     studentLink.setUp = Number(localStorage.getItem(setUpKey)) || 0;
@@ -235,6 +248,8 @@ function welcome(connection: DataConnection) {
   const token = (connection.metadata as { token?: string } | undefined)?.token;
   connection.on('open', () => {
     if (!currentRoom()) return turnAway(connection, { type: 'closed' });
+    // A code this computer has moved on from, still answering for a moment: that Room has ended.
+    if (connection.provider?.id !== peer?.id) return turnAway(connection, { type: 'old-link' });
     const claimed = !!findClaim(token);
     if (viewers.size >= maxViewers) {
       if (!claimed) return turnAway(connection, { type: 'full' });
@@ -288,7 +303,7 @@ function hear(connection: DataConnection, message: StudentMessage) {
  * never comes from a student's device.
  */
 function allowed(studentId: string, action: LinkAction) {
-  if (!account.studentPins || !activeDoorClass()?.students.some((student) => student.id === studentId)) return false;
+  if (!asksForPins(findClass(account.activeClass?.id)) || !activeDoorClass()?.students.some((student) => student.id === studentId)) return false;
   if (action.kind === 'undo') return account.passes.some((pass) => pass.id === action.passId && pass.studentId === studentId);
   if (action.kind === 'pass' && action.approvedBy) return false;
   return ['pass', 'back', 'join', 'leave', 'ask', 'cancel-request'].includes(action.kind) && action.studentId === studentId;
@@ -304,8 +319,8 @@ function claim(connection: DataConnection, firstName: string, pin: string) {
   if (Date.now() < tries.until || Date.now() < roomPausedUntil) {
     return send(connection, { type: 'claim-refused', message: 'Too many tries. Wait a minute, then try again.' });
   }
-  if (!account.studentPins) {
-    return send(connection, { type: 'claim-refused', message: "Your teacher hasn't turned on PINs yet." });
+  if (!asksForPins(findClass(account.activeClass?.id))) {
+    return send(connection, { type: 'claim-refused', message: "This class doesn't use PINs, so devices can't be set up." });
   }
   const typed = firstName.trim().toLowerCase();
   const student = classStudents(findClass(account.activeClass?.id)).find(
@@ -344,7 +359,7 @@ function ownView(studentId: string): OwnView {
   const view: OwnView = {
     studentId,
     name: onDoor?.name ?? (anyClass ? displayName(anyClass) : 'You'),
-    canAct: !!onDoor && !!account.studentPins,
+    canAct: !!onDoor && asksForPins(findClass(account.activeClass?.id)),
   };
   const pass = openPassFor(studentId);
   if (pass) {
@@ -482,6 +497,6 @@ export function studentView(at = Date.now()): StudentView {
         ...(namesInLine ? { names: each.spots.map((spot) => spot.studentName) } : {}),
       })),
     destinations: account.destinations.map(({ label, color, icon }) => ({ label, color, icon })),
-    claimsOpen: !!account.studentPins,
+    claimsOpen: asksForPins(findClass(account.activeClass?.id)),
   };
 }

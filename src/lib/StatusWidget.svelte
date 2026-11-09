@@ -12,7 +12,7 @@
   import { clock } from './clock.svelte';
   import Icon from './Icon.svelte';
   import { kioskState } from './link.svelte';
-  import { studentLink } from './studentLink.svelte';
+  import { devicesText, studentLink } from './studentLink.svelte';
 
   /**
    * The status box at the top of the sidebar: the day at a glance, on every
@@ -29,7 +29,7 @@
     !account.studentLink?.open
       ? 'Student devices off'
       : studentLink.viewers
-        ? `${studentLink.setUp} set up · ${studentLink.viewers - studentLink.setUp} watching`
+        ? devicesText()
         : 'Student devices on',
   );
 </script>

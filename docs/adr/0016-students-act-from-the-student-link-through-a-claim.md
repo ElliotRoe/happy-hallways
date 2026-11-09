@@ -40,8 +40,9 @@ Chromebook is free again as soon as the class changes.
 - Requests from claimed devices are answered where kiosk Requests are: on the
   teacher's computer, or with the Teacher PIN at the kiosk. Answering from the
   teacher's phone is a separate decision.
-- The link admits up to 60 devices. A claimed device is never turned away;
-  devices that only look fill whatever room is left.
+- A Room admits up to 100 devices at once (60 at first, raised so a large
+  class fits). A claimed device is never turned away; devices that only look
+  fill whatever room is left.
 - On their own claimed device, a student sees their own passes left, place in
   each Line and how long their own pass has run. ADR 0003 still keeps everyone's
   times off shared screens, and nobody ever sees anyone else's.

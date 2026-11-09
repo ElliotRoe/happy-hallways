@@ -119,7 +119,9 @@ _Avoid_: Exempt Student (that lifts only the Pass Allowance), unlimited student,
 A few digits (3 to 6) a student types at the kiosk after tapping their name, or
 once to Claim their own device, so a classmate can't sign out or in as them. The
 teacher turns PINs on or off for all their classes at once, on the Roster; they
-are off unless the teacher turns them on. A student has one PIN in every class.
+are off unless the teacher turns them on. A class can then stop asking for them
+(say, the youngest grades), and its students just tap their name and can't set
+up their own device. A student has one PIN in every class.
 Happy Hallways makes up a 4-digit PIN for each student, different from everyone
 else's on the Roster and from the Teacher PIN; the teacher can change one or
 bring their own in the class list.
@@ -229,7 +231,7 @@ _Avoid_: Login, account, sign-in, session, pairing (that makes a kiosk)
 **Watching**:
 A Student device in the Room without a Claim. It sees what the class lets
 students see, but can't act as anyone. The Student devices page counts devices
-as set up (holding a Claim) and Watching.
+that joined, and how many of them can take passes (hold a Claim).
 _Avoid_: Anonymous mode, guest, viewer
 
 **Active Class**:
