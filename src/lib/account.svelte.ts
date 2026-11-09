@@ -556,6 +556,19 @@ export function saveDestination(destination: Destination) {
   save();
 }
 
+/**
+ * Destinations are listed in the order they're saved, everywhere: here, on
+ * the kiosk and on students' devices. Moving one here moves it in all of them.
+ */
+export function moveDestination(id: string, toIndex: number) {
+  const fromIndex = account.destinations.findIndex((each) => each.id === id);
+  const to = Math.max(0, Math.min(account.destinations.length - 1, toIndex));
+  if (fromIndex === -1 || fromIndex === to) return;
+  const [destination] = account.destinations.splice(fromIndex, 1);
+  account.destinations.splice(to, 0, destination);
+  save();
+}
+
 /** Past passes keep the name, so removing a destination never rewrites history. */
 export function deleteDestination(id: string) {
   account.destinations = account.destinations.filter((each) => each.id !== id);

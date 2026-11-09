@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { account } from '#lib/account.svelte.ts';
+  import { account, moveDestination } from '#lib/account.svelte.ts';
+  import { tick } from 'svelte';
   import DestinationDialog from '#lib/DestinationDialog.svelte';
   import DestinationIcon from '#lib/DestinationIcon.svelte';
   import { classLimitText, limitText } from '#lib/limits.ts';
@@ -9,6 +10,28 @@
 
   /** undefined: closed. null: adding a new one. */
   let editing = $state<Destination | null | undefined>(undefined);
+
+  /**
+   * The order here is the order on the kiosk. Drag a card to move it, or use the
+   * grip's arrow keys.
+   */
+  let dragging = $state<string | null>(null);
+  let over = $state<string | null>(null);
+
+  function drop(targetId: string) {
+    if (dragging && dragging !== targetId) moveDestination(dragging, account.destinations.findIndex((each) => each.id === targetId));
+    dragging = null;
+    over = null;
+  }
+
+  async function moveWithKeys(event: KeyboardEvent, id: string) {
+    const step = ['ArrowUp', 'ArrowLeft'].includes(event.key) ? -1 : ['ArrowDown', 'ArrowRight'].includes(event.key) ? 1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    moveDestination(id, account.destinations.findIndex((each) => each.id === id) + step);
+    await tick();
+    document.querySelector<HTMLElement>(`[data-grip="${id}"]`)?.focus();
+  }
 
   // Looking over the destinations ticks them off the getting-started checklist.
   updateOnboarding({ visitedDestinations: true });
@@ -20,7 +43,8 @@
       <p class="eyebrow">Destinations</p>
       <h1>Where students can go</h1>
       <p class="muted">
-        One list for all your classes. Students see these at the kiosk, with the color and icon you choose.
+        One list for all your classes. Students see these at the kiosk, in this order, with the color and icon you
+        choose. Drag a card to move it.
         Want one boy and one girl out at once? <a href="/guides/separate-bathroom-lines">Give each bathroom its own line</a>.
       </p>
     </div>
@@ -29,15 +53,48 @@
 
   <div class="destination-cards">
     {#each account.destinations as destination (destination.id)}
-      <button class="destination-card" onclick={() => (editing = destination)}>
-        <DestinationIcon label={destination.label} size={44} />
-        <div>
-          <strong>{destination.label}</strong>
-          <p class="muted small">
-            {destination.minutes ? `${destination.minutes} minutes` : 'No time limit'} · {limitText(account, destination)}
-          </p>
-        </div>
-      </button>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="card-slot"
+        class:over={over === destination.id && dragging !== destination.id}
+        class:lifted={dragging === destination.id}
+        draggable="true"
+        ondragstart={(event) => {
+          dragging = destination.id;
+          event.dataTransfer?.setData('text/plain', destination.id);
+        }}
+        ondragover={(event) => {
+          event.preventDefault();
+          over = destination.id;
+        }}
+        ondragleave={() => over === destination.id && (over = null)}
+        ondrop={(event) => {
+          event.preventDefault();
+          drop(destination.id);
+        }}
+        ondragend={() => ((dragging = null), (over = null))}
+      >
+        <button class="destination-card" onclick={() => (editing = destination)}>
+          <DestinationIcon label={destination.label} size={44} />
+          <div>
+            <strong>{destination.label}</strong>
+            <p class="muted small">
+              {destination.minutes ? `${destination.minutes} minutes` : 'No time limit'} · {limitText(account, destination)}
+            </p>
+          </div>
+        </button>
+        {#if account.destinations.length > 1}
+          <button
+            type="button"
+            class="grip"
+            data-grip={destination.id}
+            aria-label="Move {destination.label}"
+            aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
+            title="Drag to change the order"
+            onkeydown={(event) => moveWithKeys(event, destination.id)}
+          ><Icon name="grip" size={16} /></button>
+        {/if}
+      </div>
     {/each}
     <button class="destination-card add" onclick={() => (editing = null)}>
       <Icon name="plus" size={22} />Add destination
@@ -59,3 +116,45 @@
 {#if editing !== undefined}
   <DestinationDialog destination={editing} onClose={() => (editing = undefined)} />
 {/if}
+
+<style>
+  /* Each card sits in a slot that can be dragged; the grip in its corner moves it by keyboard. */
+  .card-slot {
+    position: relative;
+    display: grid;
+  }
+
+  .card-slot .destination-card {
+    height: 100%;
+  }
+
+  .card-slot.lifted {
+    opacity: 0.5;
+  }
+
+  .card-slot.over .destination-card {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-wash);
+  }
+
+  .grip {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--faint);
+    cursor: grab;
+  }
+
+  .grip:hover,
+  .grip:focus-visible {
+    background: var(--surface-sunk);
+    color: var(--muted);
+  }
+</style>

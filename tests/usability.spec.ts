@@ -67,3 +67,14 @@ test('the kiosk lists students A to Z by the name it shows', async ({ page }) =>
   await page.goto('/door');
   await expect(page.locator('.name .name-text')).toHaveText(['Ana B.', 'Max C.', 'Zoe A.']);
 });
+
+test('destinations can be reordered, and the kiosk shows them in that order', async ({ page }) => {
+  await setUp(page);
+  await page.goto('/destinations');
+  await page.getByRole('button', { name: 'Move Nurse' }).focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('.destination-card strong')).toHaveText(['Nurse', 'Bathroom 1']);
+  await page.goto('/door');
+  await page.getByRole('button', { name: /Ana B\./ }).click();
+  await expect(page.locator('.choices button').first()).toContainText('Nurse');
+});
