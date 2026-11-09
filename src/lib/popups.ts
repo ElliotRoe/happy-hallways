@@ -18,8 +18,12 @@ export type News = {
    * short row in a compact list, with a link to where to find it.
    */
   items: { title: string; text: string; art?: PopupArt; link?: { label: string; href: string } }[];
+  /** A short thank-you, leading the news above its list. */
+  thanks?: string;
   /** Smaller changes, in one short line under the list. */
   also?: string;
+  /** A closing note at the bottom, by the buttons. An email address in it becomes a link to write to it. */
+  note?: string;
   /** Where the teacher should go to act on the news, when it all happens in one place. */
   action?: { label: string; href: string };
 };
@@ -100,6 +104,55 @@ export const news: News[] = [
       },
     ],
     also: 'Drag your classes in the sidebar to put them in order. Long destination lists now scroll on the kiosk, and the icon picker always fits and finds everyday words like “restroom” and “nurse”.',
+  },
+  {
+    id: '2026-11-whats-new',
+    title: "What's new in Happy Hallways",
+    thanks:
+      'Thank you. From all of us at teacher.dev: thank you for every email, comment and idea, and for your patience while we built. Almost everything below came straight from your requests.',
+    items: [
+      {
+        title: 'Keep this computer open during class',
+        text: "Your computer now decides who can go, for the kiosk and for students' own devices. Keep Happy Hallways open and awake while you teach. If it closes, passes pause until it's back, though students coming back are still recorded.",
+      },
+      {
+        title: 'Students can take a pass from their own device',
+        text: 'Each class gets its own code, shown on the kiosk and on Home. Students join on a Chromebook or phone, type their first name and PIN, and can take a pass, come back or join the line. A kiosk is now optional.',
+        link: { label: 'Student devices', href: '/student-link' },
+      },
+      {
+        title: 'Your old Student link now uses class codes',
+        text: 'The code changes every class period. If you posted the old link in Google Classroom, students who open it will be asked for the code.',
+      },
+      {
+        title: 'One roster for all your classes',
+        text: "A student in two of your classes is now one student, so their passes, PIN and pass allowance follow them. Check the Roster to merge anyone we couldn't match. Paste your class lists again to add full names; only you ever see them.",
+        link: { label: 'Roster', href: '/roster' },
+      },
+      {
+        title: 'Attendance, if you want it',
+        text: "Turn it on in Pass Options. Students tap in when they arrive, late arrivals are marked tardy, and anyone who never arrives is marked absent. It's your own record, not official attendance.",
+        link: { label: 'Pass Options', href: '/pass-options' },
+      },
+      {
+        title: 'Everything that needs you, in one place',
+        text: 'Requests and overdue students now sit in the Needs you panel in the corner of every page. From Home you can also add a student to a line, take one out, or clear it.',
+      },
+      {
+        title: 'Choose what students can see',
+        text: "Mark a destination like the Nurse as private, and other students see only “Out”. Each class's Settings tab can also hide where students went, who's in line, or names on students' devices.",
+        link: { label: 'Destinations', href: '/destinations' },
+      },
+      {
+        title: 'Fix mistakes in History',
+        text: 'Cancel an accidental pass and give it back, or add a note to any pass.',
+        link: { label: 'History', href: '/history' },
+      },
+    ],
+    also:
+      "Kiosk names are in A to Z order and the kiosk stays awake. A sound plays when it's a student's turn, and you can turn on a chime for overdue passes in Pass Options. Drag destinations to reorder them. Each class now has Students, PINs and Settings tabs, and History and Settings are under More in the sidebar. We now say “take a pass” and “come back”.",
+    action: { label: 'Go to Home', href: '/' },
+    note: "Something not working the way you expect since this update? Email us at support@teacher.dev. We read every message, and we're here to make your days easier.",
   },
 ];
 

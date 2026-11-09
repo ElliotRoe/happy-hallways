@@ -5,11 +5,13 @@
   import Modal from './Modal.svelte';
   import { news, popupNamed, unseenNews, type News } from './popups';
   import UpdateArt from './UpdateArt.svelte';
+  import { supportEmail, supportMailto } from './support';
 
   /**
    * Shows news Popups. Closing one in any way counts as having seen it.
    * `?popup=<id>` shows one again, and `?popup=news` every piece of news, as
-   * the Help menu offers.
+   * the Help menu offers. `?whats-new` previews the newest news without
+   * counting it as seen, to look at it before it goes out.
    */
   let asked = $state(page.url.searchParams.get('popup'));
   // Arriving with ?popup= shows it once; drop it from the address so a reload doesn't.
@@ -23,7 +25,17 @@
   });
 
 
+  let preview = $state(page.url.searchParams.has('whats-new'));
+  $effect(() => {
+    if (!page.url.searchParams.has('whats-new')) return;
+    preview = true;
+    const url = new URL(page.url.href);
+    url.searchParams.delete('whats-new');
+    replaceState(url, {});
+  });
+
   const shownNews = $derived.by((): News[] => {
+    if (preview) return news.slice(-1);
     if (asked === 'news') return [...news].reverse();
     const one = asked ? popupNamed(asked) : null;
     if (one && 'items' in one) return [one];
@@ -44,9 +56,20 @@
   });
 
   function closeNews() {
-    markPopupsSeen(shownNews.map((each) => each.id));
+    // A preview leaves it unseen, so it still shows when it goes out.
+    if (!preview) markPopupsSeen(shownNews.map((each) => each.id));
+    preview = false;
     asked = null;
   }
+
+  /** The note, with the support email as a link to write to it. */
+  function noteParts(note: string) {
+    const [before, ...rest] = note.split(supportEmail);
+    return { before, after: rest.join(supportEmail), hasEmail: rest.length > 0 };
+  }
+
+  /** News that thanks teachers leads with its own title and thank-you. */
+  const lead = $derived(shownNews.length === 1 && shownNews[0].thanks ? shownNews[0] : null);
 
   function act(href: string) {
     closeNews();
@@ -60,13 +83,19 @@
     <div class="dialog whats-changed">
       <div>
         <p class="eyebrow">What's changed</p>
-        <h2 id="whats-changed-title">Thank you for all your feedback</h2>
-        <p class="muted">Here's what's new in Happy Hallways.</p>
+        {#if lead}
+          <h2 id="whats-changed-title">{lead.title}</h2>
+          <p class="thanks">{lead.thanks}</p>
+        {:else}
+          <h2 id="whats-changed-title">Thank you for all your feedback</h2>
+          <p class="muted">Here's what's new in Happy Hallways.</p>
+        {/if}
       </div>
 
       {#each shownNews as update (update.id)}
         <section class="update">
           {#if shownNews.length > 1}<p class="eyebrow">{update.title}</p>{/if}
+          {#if update.thanks && !lead}<p class="thanks">{update.thanks}</p>{/if}
           <ol class="changes">
             {#each update.items as item (item.title)}
               <li class:compact={!item.art}>
@@ -87,6 +116,13 @@
             <div><button class="btn" onclick={() => act(action.href)}>{action.label}</button></div>
           {/if}
         </section>
+      {/each}
+
+      {#each shownNews.filter((each) => each.note) as update (update.id)}
+        {@const parts = noteParts(update.note!)}
+        <p class="note">
+          {parts.before}{#if parts.hasEmail}<a href={supportMailto('Happy Hallways')}>{supportEmail}</a>{parts.after}{/if}
+        </p>
       {/each}
 
       <div class="dialog-actions">
@@ -169,5 +205,20 @@
       grid-template-columns: 1fr;
       gap: 12px;
     }
+  }
+
+  .thanks {
+    max-width: 68ch;
+    margin-top: 6px;
+    font-size: 16px;
+    line-height: 1.55;
+  }
+
+  .note {
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: var(--surface-sunk);
+    color: var(--muted);
+    font-size: 14px;
   }
 </style>
