@@ -191,6 +191,11 @@ function limitAt(destination: string) {
   return current ? limitFor(current, destination) : null;
 }
 
+/** Whether a trip there has a Pass Limit, and so a Line. */
+export function isLimited(destination: string) {
+  return !!limitAt(destination);
+}
+
 function lineAt(destination: string) {
   const current = setup();
   return current ? lineOf(current, destination) : null;

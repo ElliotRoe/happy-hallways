@@ -34,6 +34,7 @@
   import { page } from '$app/state';
   import { currentRoom, studentLink, studentLinkUrl } from '#lib/studentLink.svelte.ts';
   import RoomBoard from '#lib/RoomBoard.svelte';
+  import { activeDoorClass, isLimited, line, perform, setup } from '#lib/door.svelte.ts';
   import RoomCode from '#lib/RoomCode.svelte';
   import { popOutRoom } from '#lib/popOut.ts';
   import { duration, hasRealDuration, isOverdue, now, time } from '#lib/passes.ts';
@@ -210,6 +211,42 @@
     new Intl.DateTimeFormat([], { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(at)),
   );
 
+  /**
+   * Managing the Line from here: the teacher's computer keeps it (docs/adr/0014), so adding,
+   * removing and clearing go through the same rules as the kiosk's taps.
+   */
+  const quiet = () => {};
+  let lineStudent = $state('');
+  let lineDestination = $state('');
+  const lineChoices = $derived.by(() => {
+    const cls = activeDoorClass();
+    const waitingIds = new Set(line().map((spot) => spot.studentId));
+    const outIds = new Set(openPasses(cls?.id ?? undefined).map((pass) => pass.studentId));
+    return {
+      students: (cls?.students ?? []).filter((student) => !waitingIds.has(student.id) && !outIds.has(student.id) && !student.alwaysGo),
+      // Only destinations with a limit have a line.
+      destinations: (setup()?.destinations ?? []).filter((destination) => isLimited(destination.label)).map((destination) => destination.label),
+    };
+  });
+  $effect(() => {
+    if (!lineChoices.destinations.includes(lineDestination)) lineDestination = lineChoices.destinations[0] ?? '';
+  });
+
+  function addToLine(event: SubmitEvent) {
+    event.preventDefault();
+    if (!lineStudent || !lineDestination) return;
+    perform({ kind: 'join', studentId: lineStudent, destination: lineDestination }, quiet);
+    lineStudent = '';
+  }
+
+  function removeFromLine(studentId: string) {
+    perform({ kind: 'leave', studentId }, quiet);
+  }
+
+  function clearOneLine(spots: { studentId: string }[]) {
+    for (const spot of spots) perform({ kind: 'leave', studentId: spot.studentId }, quiet);
+  }
+
   /** The join link with the code already in it, to paste into Google Classroom or a chat. */
   let copied = $state(false);
   async function copyJoinLink() {
@@ -308,18 +345,37 @@
           {/if}
           {#each lines as each (each.destination)}
             <div class="stack" style="gap:8px">
-              <p class="eyebrow">{each.destination ? `In line for ${each.destination}` : 'In line'} ({each.spots.length})</p>
+              <div class="line-head">
+                <p class="eyebrow">{each.destination ? `In line for ${each.destination}` : 'In line'} ({each.spots.length})</p>
+                <button class="btn btn-small btn-quiet" onclick={() => clearOneLine(each.spots)}>Clear</button>
+              </div>
               <ol class="line-list">
                 {#each each.spots as spot, index (spot.studentId)}
                   <li>
                     <span class="line-position">{index + 1}</span>
                     <strong>{spot.studentName}</strong>
                     <span class="muted small">{each.destination ? '' : `for ${spot.destination}, `}since {time(spot.joinedAt)}</span>
+                    <button class="btn btn-small btn-quiet remove" aria-label="Take {spot.studentName} out of the line" onclick={() => removeFromLine(spot.studentId)}>
+                      <Icon name="x" size={14} />
+                    </button>
                   </li>
                 {/each}
               </ol>
             </div>
           {/each}
+          {#if account.lineEnabled && lineChoices.students.length && lineChoices.destinations.length}
+            <!-- The teacher's computer keeps the Line (docs/adr/0014), so the teacher can add someone here. -->
+            <form class="add-to-line" onsubmit={addToLine}>
+              <select aria-label="Student to add to a line" bind:value={lineStudent}>
+                <option value="" disabled>Add to a line…</option>
+                {#each lineChoices.students as student (student.id)}<option value={student.id}>{student.name}</option>{/each}
+              </select>
+              <select aria-label="Line for" bind:value={lineDestination}>
+                {#each lineChoices.destinations as destination (destination)}<option value={destination}>{destination}</option>{/each}
+              </select>
+              <button class="btn btn-small" disabled={!lineStudent}>Add</button>
+            </form>
+          {/if}
         </section>
 
         <section class="this-class-log">
@@ -452,6 +508,26 @@
 {/if}
 
 <style>
+  .line-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .line-list .remove {
+    margin-left: auto;
+  }
+
+  .add-to-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .add-to-line select {
+    width: auto;
+  }
+
   /* Only shown while it's full screen. */
   .board-holder:not(:fullscreen) {
     display: none;

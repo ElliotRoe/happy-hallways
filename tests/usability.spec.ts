@@ -128,3 +128,21 @@ test('the teacher can leave a note on a pass, shown in History and in the CSV', 
   expect(csv.split('\n')[0].endsWith(',Corrected,Note')).toBe(true);
   expect(csv).toContain('Stopped at the office');
 });
+
+test('the teacher adds students to a line, takes one out, and clears it, from Home', async ({ page }) => {
+  await setUp(page);
+  await page.goto('/');
+  const lineFor = page.locator('.stack', { hasText: 'In line for Bathroom 1' });
+  for (const name of ['Ana B.', 'Max C.']) {
+    await page.getByLabel('Student to add to a line').selectOption({ label: name });
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+  }
+  await expect(lineFor.locator('.line-list li')).toHaveCount(2);
+  await expect(lineFor.locator('.line-list li').first()).toContainText('Ana B.');
+
+  await page.getByRole('button', { name: 'Take Ana B. out of the line' }).click();
+  await expect(lineFor.locator('.line-list li')).toHaveText([/Max C\./]);
+
+  await lineFor.getByRole('button', { name: 'Clear' }).click();
+  await expect(lineFor).toHaveCount(0);
+});
