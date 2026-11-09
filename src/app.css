@@ -1251,3 +1251,72 @@ tr.detail td {
 .steps.card {
   padding: 22px;
 }
+
+/* An on/off switch: a checkbox with role="switch", styled as a slider. */
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 26px;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switch span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  pointer-events: none;
+  transition: background 0.15s;
+}
+
+.switch span::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+
+.switch input:checked + span {
+  background: var(--accent);
+}
+
+.switch input:checked + span::after {
+  transform: translateX(18px);
+}
+
+.switch input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* A card that holds only a table: the column headers sit right at its top edge. */
+.card.table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.table-card > .table-wrap {
+  margin: 0;
+}
+
+.table-card > .table-wrap th {
+  border-top: 0;
+}
+
+.table-card > p,
+.table-card > .empty {
+  padding: 20px;
+}

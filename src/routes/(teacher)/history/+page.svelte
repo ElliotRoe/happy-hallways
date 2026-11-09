@@ -124,7 +124,7 @@
       )
       .sort((a, b) => b.day.localeCompare(a.day) || a.studentName.localeCompare(b.studentName));
   });
-  const anyAttendance = $derived(account.classes.some((cls) => cls.attendance) || account.attendance.length > 0);
+  const anyAttendance = $derived(!!account.attendanceRules || account.attendance.length > 0);
 
   function exportAttendance() {
     download(`Happy Hallways attendance ${dayKey(new Date())}.csv`, attendanceToCsv(attendance, className), 'text/csv');

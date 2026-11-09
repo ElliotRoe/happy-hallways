@@ -39,7 +39,7 @@
       letters of the last name. Your backup file holds full names, so keep it somewhere only you can open.
     </p>
     <p>
-      If you take attendance in a class, Happy Hallways also keeps when each student arrived, and whether they were tardy or
+      If you take attendance, Happy Hallways also keeps when each student arrived, and whether they were tardy or
       absent, on your computer only. It's your own log for your class, not your school's official attendance, which stays
       in your school's own system.
     </p>

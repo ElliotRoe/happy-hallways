@@ -482,7 +482,7 @@ let latePausedUntil = 0;
  */
 function arriveLate(firstName: string, pin: string) {
   const cls = findClass(account.activeClass?.id);
-  if (!cls?.attendance) return;
+  if (!cls || !account.attendanceRules) return;
   const askTeacher = (title: string, message: string) => showNotice({ kind: 'denied', eyebrow: 'Just arrived', title, message }, 10);
   const now = Date.now();
   if (now < latePausedUntil) return askTeacher('Ask your teacher', 'Too many tries. Your teacher can mark you here.');

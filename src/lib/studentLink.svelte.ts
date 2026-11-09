@@ -344,7 +344,7 @@ function ownView(studentId: string): OwnView {
     };
   }
   const classId = account.activeClass?.id;
-  if (classId && findClass(classId)?.attendance) {
+  if (classId && findClass(classId) && account.attendanceRules) {
     // Their own Attendance, on their own screen only. A claimed device never records an Arrival.
     view.attendance = attendanceMark(classId, studentId)?.status ?? 'not-yet';
   }

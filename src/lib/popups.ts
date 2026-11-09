@@ -91,7 +91,7 @@ export const news: News[] = [
       },
       {
         title: 'Student PINs',
-        text: 'Turn on “Students enter a PIN at the kiosk” in a class’s settings (the ⚙ button), so nobody takes a pass as someone else. Print PIN cards from the class’s Students list.',
+        text: 'Turn on Student PINs on the Roster, so nobody takes a pass as someone else. Print PIN cards from each class’s PINs button.',
       },
       {
         title: 'Student link',

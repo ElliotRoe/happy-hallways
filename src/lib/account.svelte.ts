@@ -156,6 +156,12 @@ function upgrade(saved: SavedAccount): Account {
   saved.manualNoPass ??= null;
   saved.claims ??= [];
   saved.attendance ??= [];
+  // Attendance used to be on or off for each class; it's one setting now. The first class that took it keeps its minutes.
+  if (saved.attendanceRules === undefined) {
+    const took = saved.classes.find((cls) => cls.attendance);
+    if (took?.attendance) saved.attendanceRules = took.attendance;
+  }
+  for (const cls of saved.classes) delete cls.attendance;
   // The Student link used to be one lasting link; it's now a Room per class period (docs/adr/0019).
   const link = saved.studentLink as { open: boolean; room?: Room | null } | null;
   saved.studentLink = link ? { open: link.open, room: link.room ?? null } : null;
@@ -818,12 +824,10 @@ export function setVisibility(classId: string, key: keyof ClassVisibility, on: b
 // Attendance (docs/adr/0020)
 // ---------------------------------------------------------------------------
 
-/** Turns Attendance on (with these options) or off for one class. */
-export function setAttendance(classId: string, options: AttendanceOptions | null) {
-  const cls = findClass(classId);
-  if (!cls) return;
-  if (options) cls.attendance = options;
-  else delete cls.attendance;
+/** Turns Attendance on (with these options) or off, for every class. */
+export function setAttendance(options: AttendanceOptions | null) {
+  if (options) account.attendanceRules = options;
+  else delete account.attendanceRules;
   save();
 }
 
@@ -871,11 +875,11 @@ function absentClockStart(classId: string, at: number) {
  * caller saves.
  */
 function arrive(classId: string, studentId: string, at: string, byTeacher: boolean) {
-  const cls = findClass(classId);
-  if (!cls?.attendance) return false;
+  const rules = account.attendanceRules;
+  if (!findClass(classId) || !rules) return false;
   const existing = attendanceMark(classId, studentId, today(at));
   if (existing?.arrivedAt) return false;
-  const counted = arrivalStatus(currentSchedule(), classId, cls.attendance, at);
+  const counted = arrivalStatus(currentSchedule(), classId, rules, at);
   const mark = existing ?? newMark(classId, studentId, today(at));
   mark.arrivedAt = at;
   if (existing?.status === 'absent') {
@@ -962,7 +966,7 @@ export function goneForTheDay(studentId: string) {
   const clock = clockOf(Date.now());
   const schedule = currentSchedule();
   for (const cls of account.classes) {
-    if (!cls.attendance || !cls.members.some((member) => member.studentId === studentId && member.status === 'current')) continue;
+    if (!account.attendanceRules || !cls.members.some((member) => member.studentId === studentId && member.status === 'current')) continue;
     const existing = attendanceMark(cls.id, studentId, day);
     if (existing?.arrivedAt) continue;
     const isOn = account.activeClass?.id === cls.id;
@@ -987,12 +991,13 @@ export function goneForTheDay(studentId: string) {
 function markAbsences(at = Date.now(), leaving = false) {
   const active = account.activeClass;
   const cls = findClass(active?.id);
-  if (!active?.id || !cls?.attendance || today(active.changedAt) !== today(at)) {
+  const rules = account.attendanceRules;
+  if (!active?.id || !cls || !rules || today(active.changedAt) !== today(at)) {
     // A class on the door since before today came on today when the day began, if it's on the Schedule today.
-    if (!(active?.id && cls?.attendance && active.onSchedule && periodFor(currentSchedule(), active.id, at))) return false;
+    if (!(active?.id && cls && rules && active.onSchedule && periodFor(currentSchedule(), active.id, at))) return false;
   }
   const { start, period } = absentClockStart(cls!.id, at);
-  const due = start + cls!.attendance!.absentAfterMinutes * 60_000;
+  const due = start + rules!.absentAfterMinutes * 60_000;
   const ended = period ? at >= new Date(new Date(at).setHours(...(period.end.split(':').map(Number) as [number, number]), 0, 0)).getTime() : false;
   if (!(at >= due || ended || (leaving && (active!.onSchedule || at >= due)))) return false;
   const day = today(at);
@@ -1286,7 +1291,7 @@ export function endAllClaims() {
 /** Who has arrived today in the class on the door, if it takes Attendance. */
 function arrivalsOnTheDoor() {
   const cls = findClass(account.activeClass?.id);
-  if (!cls?.attendance) return null;
+  if (!cls || !account.attendanceRules) return null;
   const marks = attendanceToday(cls.id);
   return {
     classId: cls.id,

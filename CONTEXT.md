@@ -291,8 +291,9 @@ _Avoid_: Archived student, deleted student, inactive student
 **Attendance**:
 The teacher's own record of whether each student came to each class on each
 day: present, Tardy or Absent. It is one teacher's notes, not the school's
-official attendance. Each class turns it on or off; it is off unless the
-teacher turns it on.
+official attendance. It is one setting for all the teacher's classes, in Pass
+Options, with the same Tardy and Absent minutes everywhere; it is off unless
+the teacher turns it on.
 _Avoid_: Roll call, register, official attendance
 
 **Arrival**:

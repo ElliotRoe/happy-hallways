@@ -1,10 +1,26 @@
 <script lang="ts">
-  import { account, resetPassAllowance, setOverdueChime, setPassAllowance, setPassOptions } from '#lib/account.svelte.ts';
+  import { account, resetPassAllowance, setAttendance, setOverdueChime, setPassAllowance, setPassOptions } from '#lib/account.svelte.ts';
+  import { defaultAttendance } from '#lib/attendance.ts';
   import { shortDate } from '#lib/passes.ts';
   import RequestCard from '#lib/RequestCard.svelte';
 
   const allowance = $derived(account.passAllowance);
   const classLimitChoices = Array.from({ length: 10 }, (_, index) => index + 1);
+  const attendance = $derived(account.attendanceRules);
+
+  /** A minutes box: a whole number, at least `least`; anything else puts the saved value back. */
+  function setMinutes(key: 'graceMinutes' | 'absentAfterMinutes', event: Event) {
+    const rules = account.attendanceRules;
+    if (!rules) return;
+    const input = event.currentTarget as HTMLInputElement;
+    const value = Number(input.value);
+    const least = key === 'absentAfterMinutes' ? 1 : 0;
+    if (input.value === '' || !Number.isFinite(value) || value < least) {
+      input.value = String(rules[key]);
+      return;
+    }
+    setAttendance({ ...rules, [key]: Math.round(value) });
+  }
 </script>
 
 <div class="page">
@@ -187,6 +203,47 @@
     {/if}
   </section>
 
+  <section class="card" aria-labelledby="attendance-title">
+    <div class="option-row">
+      <div>
+        <h2 id="attendance-title">Attendance</h2>
+        <p class="muted small">
+          Students tap their name at the kiosk when they arrive. Arriving after the period starts on your schedule is
+          tardy; not arriving at all is absent, and absent students are hidden from the kiosk. This is your own log, not
+          your school's official attendance.
+        </p>
+      </div>
+      <label class="switch">
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label="Take attendance"
+          checked={!!attendance}
+          onchange={(event) => setAttendance(event.currentTarget.checked ? { ...defaultAttendance } : null)}
+        />
+        <span aria-hidden="true"></span>
+      </label>
+    </div>
+    {#if attendance}
+      <div class="option-row">
+        <label class="field">
+          Minutes after the period starts before an arrival is tardy
+          <input type="number" min="0" style="max-width:120px" value={attendance.graceMinutes} onchange={(event) => setMinutes('graceMinutes', event)} />
+        </label>
+        <label class="field">
+          Minutes after class starts before a student who hasn't arrived is absent
+          <input
+            type="number"
+            min="1"
+            style="max-width:120px"
+            value={attendance.absentAfterMinutes}
+            onchange={(event) => setMinutes('absentAfterMinutes', event)}
+          />
+        </label>
+      </div>
+    {/if}
+  </section>
+
   <section class="card">
     <div class="option-row">
       <div>
@@ -264,52 +321,4 @@
     margin-top: 3px;
   }
 
-  .switch {
-    position: relative;
-    flex: 0 0 auto;
-    width: 44px;
-    height: 26px;
-  }
-
-  .switch input {
-    position: absolute;
-    inset: 0;
-    margin: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  .switch span {
-    position: absolute;
-    inset: 0;
-    border-radius: 999px;
-    background: var(--border-strong);
-    pointer-events: none;
-    transition: background 0.15s;
-  }
-
-  .switch span::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #fff;
-    transition: transform 0.15s;
-  }
-
-  .switch input:checked + span {
-    background: var(--accent);
-  }
-
-  .switch input:checked + span::after {
-    transform: translateX(18px);
-  }
-
-  .switch input:focus-visible + span {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
 </style>

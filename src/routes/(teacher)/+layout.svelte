@@ -116,7 +116,7 @@
 {#if !belongsAtDoor}
   <div class="shell">
     {#if ready}<Sidebar />{:else}<aside class="sidebar"></aside>{/if}
-    <main class="main">
+    <main class="main" class:has-drawer={account.classes.length > 0}>
       {@render children()}
     </main>
   </div>
@@ -189,5 +189,10 @@
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  /* Room under the last thing on the page, so it can scroll clear of the closed Needs you drawer. */
+  .main.has-drawer {
+    padding-bottom: 56px;
   }
 </style>

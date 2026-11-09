@@ -20,6 +20,10 @@ system.
 
 ## Consequences
 
+- Attendance is one setting for all the teacher's classes for now, in Pass
+  Options, with one set of Tardy and Absent minutes. If teachers ask for it,
+  turning it on per class is the fallback (it began that way; a class that
+  took it carries its minutes over to the one setting).
 - An Arrival happens only at the kiosk (with the student's PIN when the class
   uses PINs) or by the teacher. A claimed device shows its own student's
   Attendance but cannot record an Arrival.

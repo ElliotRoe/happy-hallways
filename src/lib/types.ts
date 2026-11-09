@@ -159,7 +159,7 @@ export type Class = {
   id: string;
   name: string;
   members: Member[];
-  /** Attendance for this class, when the teacher turns it on. See docs/adr/0020. */
+  /** Before Attendance was one setting for every class: whether this class took it. Read only to carry it over. */
   attendance?: AttendanceOptions;
   /** What students can see on the kiosk and on their devices. Each is on unless set false. See docs/adr/0022. */
   visibility?: Partial<ClassVisibility>;
@@ -332,6 +332,8 @@ export type Account = {
   overdueChime?: boolean;
   /** Every Attendance mark, for classes that take Attendance. See docs/adr/0020. */
   attendance: AttendanceMark[];
+  /** Attendance for every class, while the teacher has it on (one setting for now). See docs/adr/0020. */
+  attendanceRules?: AttendanceOptions;
   lastExportedAt?: string;
 };
 

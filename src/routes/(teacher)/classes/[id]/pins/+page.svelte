@@ -37,7 +37,6 @@
       <button class="btn btn-primary" onclick={() => window.print()} disabled={!cards.length}>
         <Icon name="printer" size={16} />Print
       </button>
-      <a class="btn btn-quiet" href="/roster"><Icon name="arrow-left" size={16} />Back to the Roster</a>
     </div>
   {/if}
 </section>
@@ -99,7 +98,7 @@
 
   /* On paper: just the cards, with the app around them left off. */
   @media print {
-    :global(.sidebar, .corner, .site-footer, .class-head, .no-print) {
+    :global(.sidebar, .corner, .checklist-spot, .site-footer, .class-head, .page-tabs, .no-print) {
       display: none !important;
     }
 

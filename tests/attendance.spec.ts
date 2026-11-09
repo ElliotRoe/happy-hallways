@@ -137,11 +137,12 @@ test('a student who never arrives is Absent and hidden from the door; the teache
   expect(csv).toMatch(/Period 1,Maya C\.,Absent/);
 });
 
-test('a class that takes no Attendance shows no arrival tap', async ({ page }) => {
+test('with Attendance off, the kiosk shows no arrival tap', async ({ page }) => {
   await setUp(page, 10, { graceMinutes: 0, absentAfterMinutes: 30 });
   await page.evaluate(() => {
     const account = JSON.parse(localStorage.getItem('hallway.account')!);
     delete account.classes[0].attendance;
+    delete account.attendanceRules;
     localStorage.setItem('hallway.account', JSON.stringify(account));
   });
   await page.goto('/door');

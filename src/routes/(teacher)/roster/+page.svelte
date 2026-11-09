@@ -124,10 +124,10 @@
     {/if}
   </section>
 
-  <section class="card">
+  <section class="card table-card">
     {#if rows.length}
       <!-- The card holds only the table, so the column headers sit right at its top. -->
-      <div class="table-wrap flush">
+      <div class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -182,15 +182,7 @@
 {/if}
 
 <style>
-  .table-wrap.flush {
-    margin-top: -20px;
-    border-radius: var(--radius) var(--radius) 0 0;
-  }
 
-  /* The card's own border is the top edge here, so the headers don't draw a second one. */
-  .table-wrap.flush :global(th) {
-    border-top: 0;
-  }
 
   tfoot td {
     border-top: 1px solid var(--border);
