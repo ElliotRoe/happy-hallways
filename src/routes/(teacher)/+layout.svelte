@@ -10,7 +10,6 @@
   import { onboarding } from '#lib/onboarding.svelte.ts';
   import Sidebar from '#lib/Sidebar.svelte';
   import { serveStudentLink } from '#lib/studentLink.svelte.ts';
-  import SiteFooter from '#lib/SiteFooter.svelte';
   import Toast from '#lib/Toast.svelte';
   import Popups from '#lib/Popups.svelte';
   import ControlDrawer from '#lib/ControlDrawer.svelte';
@@ -117,10 +116,8 @@
 {#if !belongsAtDoor}
   <div class="shell">
     {#if ready}<Sidebar />{:else}<aside class="sidebar"></aside>{/if}
-    <main class="main" class:clears-drawer={ready && account.classes.length > 0}>
+    <main class="main">
       {@render children()}
-      <!-- Home places the footer itself, under its middle column, so the page fits the window without scrolling. -->
-      {#if page.url.pathname !== '/' || !account.classes.length}<SiteFooter />{/if}
     </main>
   </div>
   <!-- Messages for every page float in this corner, above the checklist, so the page never shifts. -->
@@ -167,12 +164,6 @@
     /* Wide enough for Requests to read on two lines. */
     width: min(420px, calc(100vw - 40px));
     pointer-events: none;
-  }
-
-  /* The Needs you tab sits in the bottom-right corner, so the footer moves to the left, out from under it. */
-  .main.clears-drawer :global(.site-footer) {
-    justify-content: flex-start;
-    padding-left: 0;
   }
 
   .corner.with-drawer {

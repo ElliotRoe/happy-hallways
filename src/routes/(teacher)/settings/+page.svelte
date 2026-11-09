@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SettingsTabs from '#lib/SettingsTabs.svelte';
   import { account, exportAccount, importAccount } from '#lib/account.svelte.ts';
   import ConfirmDialog from '#lib/ConfirmDialog.svelte';
   import { dayKey, shortDate } from '#lib/passes.ts';
@@ -40,6 +41,7 @@
 </script>
 
 <div class="page">
+  <SettingsTabs />
   <header class="page-head">
     <div>
       <p class="eyebrow">Settings</p>

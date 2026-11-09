@@ -8,14 +8,16 @@
   import StatusWidget from './StatusWidget.svelte';
 
   /**
-   * The status box first, then what the teacher checks every day (Home and
-   * History), the classes, what they set up, and the devices that run the door,
-   * each under its own label. What's happening right
+   * The status box first, then Home, the classes, what the teacher sets up and
+   * the devices that run the door, then History and Settings, each group under
+   * its own label. What's happening right
    * now lives on Home.
    */
   let classesOpen = $state(true);
 
   const path = $derived(page.url.pathname);
+  /** Settings' tabs: the teacher's data, the guides, about and privacy. */
+  const settingsTab = $derived(['/settings', '/settings/guides', '/about', '/privacy'].includes(path));
 </script>
 
 <aside class="sidebar">
@@ -25,7 +27,6 @@
 
   <nav class="nav" aria-label="Main">
     <a class="nav-link" class:active={path === '/'} href="/"><Icon name="home" />Home</a>
-    <a class="nav-link" class:active={path === '/history'} href="/history"><Icon name="history" />History</a>
 
     <button class="nav-toggle" aria-expanded={classesOpen} onclick={() => (classesOpen = !classesOpen)}>
       <Icon name="users" />Classes
@@ -62,10 +63,16 @@
       <Icon name="smartphone" />Student devices
     </a>
 
+    <p class="nav-label">More</p>
+    <a class="nav-link" class:active={path === '/history'} href="/history"><Icon name="history" />History</a>
+    <a class="nav-link" class:active={settingsTab} href="/settings"><Icon name="settings" />Settings</a>
+
   </nav>
 
   <div class="sidebar-foot">
+    <a class="credit" href="https://teacher.dev" target="_blank" rel="noopener noreferrer">
+      <img src="/edtechathon-logo.svg" alt="" width="20" height="20" />Built by teacher.dev
+    </a>
     <HelpButton />
-    <a class="nav-link" class:active={path === '/settings'} href="/settings"><Icon name="settings" />Settings</a>
   </div>
 </aside>

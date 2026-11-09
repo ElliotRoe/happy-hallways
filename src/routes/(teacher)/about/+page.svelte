@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SettingsTabs from '#lib/SettingsTabs.svelte';
   import { siteUrl } from '#lib/guides.ts';
   import { supportEmail, supportMailto } from '#lib/support.ts';
 
@@ -19,6 +20,7 @@
 </svelte:head>
 
 <div class="page site-prose">
+  <SettingsTabs />
   <header>
     <p class="eyebrow">About</p>
     <h1>About Happy Hallways</h1>

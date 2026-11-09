@@ -345,7 +345,7 @@ test('a destination can have a time limit', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'New destination' })).toBeHidden();
   await expect(page.getByText('15 minutes')).toBeVisible();
 
-  await page.getByRole('button', { name: /Nurse/ }).click();
+  await page.getByRole('button', { name: /^Nurse/ }).click();
   await page.getByLabel(/Minutes the trip should take/).fill('');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('heading', { name: 'Edit Nurse' })).toBeHidden();
