@@ -120,7 +120,7 @@
       {@render children()}
     </main>
   </div>
-  <!-- Messages for every page float in this corner, above the checklist, so the page never shifts. -->
+  <!-- Messages for every page float in this corner, so the page never shifts. -->
   {#if ready}
     <div class="corner" class:with-drawer={account.classes.length > 0}>
       {#if updated.current}
@@ -141,11 +141,11 @@
           </div>
         </Toast>
       {/if}
-      <!-- Beside Needs you, to its left, rather than stacked on it. -->
-      {#if onboarding.showChecklist}<div class="checklist-spot"><GettingStarted /></div>{/if}
       <!-- Needs you: Requests, Overdue Reminders and No passes, on every page, at the very bottom of the corner. -->
       {#if account.classes.length}<ControlDrawer />{/if}
     </div>
+    <!-- The checklist sits in the bottom-left of the page, by the sidebar, apart from Needs you. -->
+    {#if onboarding.showChecklist}<div class="checklist-spot"><GettingStarted /></div>{/if}
     <Popups />
   {/if}
 {/if}
@@ -171,16 +171,17 @@
     bottom: 0;
   }
 
-  .corner.with-drawer .checklist-spot {
-    position: absolute;
-    right: calc(100% + 14px);
+  .checklist-spot {
+    position: fixed;
+    left: calc(252px + clamp(18px, 5vw, 64px));
     bottom: 20px;
+    z-index: 45;
   }
 
-  /* No room beside it on a narrow screen: back on top. */
-  @media (max-width: 900px) {
-    .corner.with-drawer .checklist-spot {
-      position: static;
+  /* Where the sidebar moves to the top. */
+  @media (max-width: 760px) {
+    .checklist-spot {
+      left: 18px;
     }
   }
 
