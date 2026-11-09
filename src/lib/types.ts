@@ -224,6 +224,15 @@ export type Pass = {
   endedBy?: EndedBy;
   /** Set once a teacher has corrected this pass on the laptop. */
   corrected?: boolean;
+  /**
+   * The teacher cancelled it afterwards (a mis-tap, say) and gave it back: it no
+   * longer counts toward the Pass Allowance or the numbers, but stays in History.
+   * `endedBy` is then "cancelled"; how it ended before is kept to undo that.
+   */
+  cancelledBy?: 'teacher';
+  endedBeforeCancel?: EndedBy;
+  /** The teacher's own note about this pass, for History. */
+  note?: string;
   /** When this copy last changed, so the kiosk and the laptop can tell which copy is newer. */
   updatedAt: string;
 };

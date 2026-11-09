@@ -67,7 +67,8 @@ export function inRange(at: string, range: DateRange, from = '', to = '') {
 export function allRows(passes: Pass[], denied: DeniedRequest[]): HistoryRow[] {
   return [
     ...passes
-      .filter((pass) => pass.endedBy !== 'cancelled')
+      // A pass cancelled at the door (a mis-tap undone at once) never happened; one the teacher cancelled later stays, marked.
+      .filter((pass) => pass.endedBy !== 'cancelled' || pass.cancelledBy === 'teacher')
       .map((pass) => ({
         kind: 'pass' as const,
         id: pass.id,

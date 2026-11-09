@@ -1044,6 +1044,41 @@ export function markReturned(passId: string) {
   save();
 }
 
+/**
+ * Cancels a pass after the fact and gives it back, or counts it again. It's a
+ * Correction (docs/adr/0006): the pass stays in History, marked, but a cancelled
+ * one counts toward neither the Pass Allowance nor the numbers.
+ */
+export function cancelPass(passId: string, cancel: boolean) {
+  const pass = account.passes.find((each) => each.id === passId);
+  if (!pass) return;
+  if (cancel && pass.cancelledBy !== 'teacher') {
+    pass.endedBeforeCancel = pass.endedBy ?? 'teacher';
+    pass.endedBy = 'cancelled';
+    pass.cancelledBy = 'teacher';
+    pass.inAt ??= now();
+  } else if (!cancel && pass.cancelledBy === 'teacher') {
+    pass.endedBy = pass.endedBeforeCancel ?? 'teacher';
+    delete pass.cancelledBy;
+    delete pass.endedBeforeCancel;
+  } else return;
+  pass.corrected = true;
+  pass.updatedAt = now();
+  save();
+}
+
+/** The teacher's note on a pass. A note isn't a Correction: it changes nothing about the trip. */
+export function setPassNote(passId: string, note: string) {
+  const pass = account.passes.find((each) => each.id === passId);
+  if (!pass) return;
+  const text = note.trim();
+  if ((pass.note ?? '') === text) return;
+  if (text) pass.note = text;
+  else delete pass.note;
+  pass.updatedAt = now();
+  save();
+}
+
 /** A Correction changes the pass in place and marks it. See docs/adr/0006. */
 export function correctPass(passId: string, changes: { student?: ClassStudent; outAt?: string; inAt?: string }) {
   const pass = account.passes.find((each) => each.id === passId);

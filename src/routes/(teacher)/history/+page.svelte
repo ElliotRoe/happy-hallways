@@ -103,6 +103,7 @@
   }
 
   function ending(pass: Pass) {
+    if (pass.cancelledBy === 'teacher') return { text: 'Cancelled, given back', tone: '' };
     if (!pass.inAt) return { text: 'Still out', tone: 'warn' };
     if (pass.endedBy === 'switch') return { text: 'Class changed', tone: '' };
     if (pass.endedBy === 'removed') return { text: 'Left the roster', tone: '' };
@@ -234,7 +235,10 @@
               {#if row.kind === 'pass'}
                 {@const pass = row.pass}
                 {@const end = ending(pass)}
-                <td><strong>{pass.studentName}</strong></td>
+                <td>
+                  <strong>{pass.studentName}</strong>
+                  {#if pass.note}<span class="pass-note muted small">{pass.note}</span>{/if}
+                </td>
                 <td>{className(pass.classId)}</td>
                 <td><span class="destination-chip"><DestinationIcon label={pass.destination} size={22} />{pass.destination}</span></td>
                 <td class="num">
@@ -336,6 +340,12 @@
 {/if}
 
 <style>
+  .pass-note {
+    display: block;
+    max-width: 32ch;
+    white-space: normal;
+  }
+
   .wide {
     max-width: 1240px;
   }
