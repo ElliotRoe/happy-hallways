@@ -152,7 +152,7 @@
   {/if}
 
   {#if !account.destinations.length}
-    <div class="notice-bar"><Icon name="alert-triangle" />Students can't sign out until there's at least one destination.</div>
+    <div class="notice-bar"><Icon name="alert-triangle" />Students can't take a pass until there's at least one destination.</div>
   {/if}
 </div>
 

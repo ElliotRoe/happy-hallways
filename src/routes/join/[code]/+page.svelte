@@ -271,7 +271,7 @@
                   of {me.out.minutes}{/if}
               </p>
             {:else if !me.canAct}
-              <p class="mine-status">You can sign out from here during your class.</p>
+              <p class="mine-status">You can take a pass from here during your class.</p>
             {:else if me.request}
               <p class="mine-status">You asked your teacher for {me.request.destination}. If they say yes, go.</p>
             {:else if me.line}

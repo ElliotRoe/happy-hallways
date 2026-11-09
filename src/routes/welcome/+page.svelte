@@ -20,7 +20,7 @@
 
   const title = 'Happy Hallways · A free digital hall pass for classrooms';
   const description =
-    'A free digital hall pass for teachers. Students sign out at a kiosk by the door, and you see who’s out and how much class each student misses.';
+    'A free digital hall pass for teachers. Students take a pass at a kiosk by the door, and you see who’s out and how much class each student misses.';
   const url = `${siteUrl}/welcome`;
   const image = `${siteUrl}/og-image.png`;
 

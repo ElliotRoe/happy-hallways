@@ -21,7 +21,7 @@ export const steps = [
     icon: 'kiosk',
     title: 'Start the kiosk',
     short: 'A tablet by the door, or this computer. Students tap their name.',
-    text: 'Pair a spare tablet or Chromebook by the door, or use this computer. Students tap their name to sign out and back in, and you see who’s out from your desk.',
+    text: 'Pair a spare tablet or Chromebook by the door, or use this computer. Students tap their name to take a pass, and again when they’re back, and you see who’s out from your desk.',
   },
 ] as const satisfies readonly { key: string; icon: IconName; title: string; short: string; text: string }[];
 

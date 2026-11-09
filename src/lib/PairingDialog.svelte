@@ -86,7 +86,7 @@
         <p class="eyebrow">Reconnect the kiosk</p>
         <h1 id="pairing-title">On the kiosk, tap Reconnect, then type this code</h1>
         <p class="muted">
-          Or scan the QR code with the kiosk's camera. Students who signed back in at the kiosk while it was offline are kept. Each code
+          Or scan the QR code with the kiosk's camera. Students who came back in at the kiosk while it was offline are kept. Each code
           works once.
         </p>
       {:else}

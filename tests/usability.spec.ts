@@ -111,7 +111,7 @@ test('a pass tapped by mistake can be cancelled from History, and the student ge
   await page.goto('/history');
   await page.getByRole('row', { name: /Ana B\./ }).getByRole('button', { name: 'Correct this pass' }).click();
   await page.getByRole('button', { name: 'Count it again' }).click();
-  await expect(page.getByRole('row', { name: /Ana B\./ })).toContainText('Signed back in');
+  await expect(page.getByRole('row', { name: /Ana B\./ })).toContainText('Came back');
 });
 
 test('the teacher can leave a note on a pass, shown in History and in the CSV', async ({ page }) => {

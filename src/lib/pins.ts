@@ -1,6 +1,6 @@
 /**
  * Student PINs: a few digits a student types at the kiosk after tapping their
- * name, so classmates can't sign out as each other. Not the teacher's PIN,
+ * name, so classmates can't take a pass as each other. Not the teacher's PIN,
  * and never a real school ID number. See docs/adr/0013.
  */
 

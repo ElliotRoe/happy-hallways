@@ -344,7 +344,7 @@
   <meta name="robots" content="noindex" />
 </svelte:head>
 
-<!-- Closing the kiosk stops students signing out, and may strand passes not yet sent. -->
+<!-- Closing the kiosk stops students taking passes, and may strand passes not yet sent. -->
 <svelte:window onbeforeunload={(event) => askBeforeLeaving(event, local || paired)} />
 <svelte:document onpointerdown={() => (lastTouch = Date.now())} onkeydown={() => (lastTouch = Date.now())} />
 
@@ -357,7 +357,7 @@
         <h1>Reconnect this kiosk</h1>
         <p class="lede">
           On the teacher's laptop, open Happy Hallways and choose <strong>Reconnect</strong> on Home. Then type the 6-digit
-          code here, or scan the QR code with this device's camera. Students who signed back in here are kept.
+          code here, or scan the QR code with this device's camera. Students who came back in here are kept.
         </p>
       {:else}
         <h1>Make this device the kiosk</h1>

@@ -455,7 +455,7 @@ test('the pass allowance stops a student, and the teacher can let them go with t
   const approved = page.getByRole('row', { name: /Still out/ });
   await expect(approved).toContainText('Extra');
   await expect(approved).toContainText('Approved by PIN');
-  await expect(page.getByRole('row', { name: /Signed back in/ })).not.toContainText('Approved');
+  await expect(page.getByRole('row', { name: /Came back/ })).not.toContainText('Approved');
 });
 
 test('a warn-only allowance, an exempt student and a destination that does not count', async ({ page }) => {
@@ -527,7 +527,7 @@ test('a paired kiosk keeps counting passes the laptop already has', async ({ bro
   await tablet.getByRole('button', { name: 'Done' }).click();
   // Wait until the laptop has the trip, so the tablet has let go of its own copy.
   await laptop.getByRole('link', { name: 'History', exact: true }).click();
-  await expect(laptop.getByText('Signed back in')).toBeVisible({ timeout: 15_000 });
+  await expect(laptop.getByText('Came back')).toBeVisible({ timeout: 15_000 });
 
   await tablet.getByRole('button', { name: /Maya Ca\./ }).click();
   await expect(tablet.getByText("You've used all your passes this week.")).toBeVisible();

@@ -109,7 +109,7 @@ export function knownIcon(name: string): DestinationIcon {
 }
 
 /**
- * Every new account starts with these, so students can sign out on day one.
+ * Every new account starts with these, so students can take a pass on day one.
  * Two bathrooms, each one at a time, show from the start that every
  * destination with a limit has its own line: someone waiting for one bathroom
  * never holds up the other. Teachers rename them to fit their school.

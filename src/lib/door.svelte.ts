@@ -453,7 +453,7 @@ function endPass(studentId: string) {
       kind: 'returned',
       title: `Welcome back, ${pass.studentName}`,
       // A student's own device never hears another student's name (docs/adr/0018).
-      message: next && !fromLink ? `${next.studentName}, it's your turn. Tap your name to go.` : 'You are signed back in.',
+      message: next && !fromLink ? `${next.studentName}, it's your turn. Tap your name to go.` : 'Welcome back.',
     },
     4,
   );
@@ -767,7 +767,7 @@ function waitingNotice(): DoorNotice {
     kind: 'denied',
     eyebrow: 'Not connected',
     title: "Waiting for your teacher's computer",
-    message: 'Passes start again as soon as this kiosk reaches it. You can still sign back in.',
+    message: 'Passes start again as soon as this kiosk reaches it. You can still come back in: tap your name.',
   };
 }
 
@@ -837,7 +837,7 @@ function signBackInOffline(studentId: string) {
     {
       kind: 'returned',
       title: `Welcome back, ${pass.studentName}`,
-      message: "You are signed back in. This kiosk will tell your teacher's computer when it reconnects.",
+      message: "Welcome back. This kiosk will tell your teacher's computer when it reconnects.",
     },
     4,
   );

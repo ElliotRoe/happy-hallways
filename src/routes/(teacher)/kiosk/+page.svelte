@@ -101,7 +101,7 @@
     <div>
       <p class="eyebrow">Kiosk</p>
       <h1>The screen by your door</h1>
-      <p class="muted">Students tap their name to sign out and back in. Use a spare tablet or Chromebook, or this computer.</p>
+      <p class="muted">Students tap their name to take a pass, and again when they're back. Use a spare tablet or Chromebook, or this computer.</p>
     </div>
   </header>
 
@@ -180,7 +180,7 @@
           {:else}
             <p class="muted small">
               {kiosk.lastSeenAt ? `Last connected at ${time(kiosk.lastSeenAt)}. ` : ''}Until it reconnects, students can
-              only sign back in there; those returns arrive when it does. Keep Happy Hallways open and awake on this laptop.
+              only come back in there; those returns arrive when it does. Keep Happy Hallways open and awake on this laptop.
             </p>
             <div><button class="btn btn-primary" onclick={() => pair(true)}>Reconnect</button></div>
           {/if}
@@ -243,7 +243,7 @@
   <ConfirmDialog
     title={kiosk?.kind === 'device' ? 'Forget this device?' : 'Stop using this computer as the kiosk?'}
     message={kiosk?.kind === 'device'
-      ? "It won't be your kiosk any more. If students signed back in there while it was offline, those returns still arrive the next time it connects."
+      ? "It won't be your kiosk any more. If students came back in there while it was offline, those returns still arrive the next time it connects."
       : 'This computer will no longer be the kiosk.'}
     confirmLabel={kiosk?.kind === 'device' ? 'Forget it' : 'Stop using it'}
     onConfirm={forget}

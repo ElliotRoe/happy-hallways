@@ -191,8 +191,8 @@
       title: account.kiosk?.kind === 'device' ? 'Disconnect the kiosk?' : 'Stop using this computer as the kiosk?',
       message:
         account.kiosk?.kind === 'device'
-          ? "Students won't be able to sign out on it. If it's holding passes this computer hasn't received yet, they'll still arrive the next time it connects."
-          : "Students won't be able to sign out until you set up a kiosk again.",
+          ? "Students won't be able to take a pass on it. If it's holding passes this computer hasn't received yet, they'll still arrive the next time it connects."
+          : "Students won't be able to take a pass until you set up a kiosk again.",
       label: 'Disconnect',
       run: () => {
         cancelPairing();
@@ -416,7 +416,7 @@
           <span class="kiosk-state"><span class="status-dot {kiosk.dot}" aria-hidden="true"></span>{kiosk.text.replace(/^Kiosk (\w)/, (_, first) => first.toUpperCase())}</span>
         </div>
         {#if !account.kiosk}
-          <p class="muted small">Students sign out on a tablet or Chromebook by the door, or on this computer.</p>
+          <p class="muted small">Students take a pass on a tablet or Chromebook by the door, or on this computer.</p>
           {#if account.pin}
             <div class="kiosk-actions">
               <button class="btn btn-small btn-primary" onclick={() => (pairing = true)}>Pair a device</button>
@@ -440,7 +440,7 @@
         {:else}
           <p class="muted small">
             {account.kiosk.lastSeenAt ? `Last connected at ${time(account.kiosk.lastSeenAt)}. ` : ''}Until it reconnects,
-            students can only sign back in there.
+            students can only come back in there.
           </p>
           <div class="kiosk-actions">
             <button

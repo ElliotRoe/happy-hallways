@@ -96,7 +96,7 @@
       <div>
         <h2 id="pins-title">Student PINs</h2>
         <p class="muted small">
-          After tapping their name at the kiosk, each student types their own PIN, so nobody signs out as someone else. A
+          After tapping their name at the kiosk, each student types their own PIN, so nobody takes a pass as someone else. A
           student needs one to use their own device for passes, too. Each student has one PIN for all your
           classes. Happy Hallways makes them up; never use real student ID numbers.
         </p>

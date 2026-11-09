@@ -108,7 +108,7 @@
     if (pass.endedBy === 'switch') return { text: 'Class changed', tone: '' };
     if (pass.endedBy === 'removed') return { text: 'Left the roster', tone: '' };
     if (pass.endedBy === 'teacher') return { text: 'Marked back by you', tone: '' };
-    return { text: 'Signed back in', tone: 'ok' };
+    return { text: 'Came back', tone: 'ok' };
   }
 
   /** Attendance for the same dates, class and student filters, newest first. See docs/adr/0020. */
@@ -289,7 +289,7 @@
   {:else}
     <div class="empty card">
       <span class="icon-tile"><Icon name="history" /></span>
-      {everything.length ? 'Nothing matches these filters.' : 'Passes will appear here as students sign out at the kiosk.'}
+      {everything.length ? 'Nothing matches these filters.' : 'Passes will appear here as students take them at the kiosk.'}
     </div>
   {/if}
 
