@@ -34,6 +34,7 @@
   import { page } from '$app/state';
   import SiteFooter from '#lib/SiteFooter.svelte';
   import { currentRoom, studentLink } from '#lib/studentLink.svelte.ts';
+  import RoomBoard from '#lib/RoomBoard.svelte';
   import RoomCode from '#lib/RoomCode.svelte';
   import { popOutRoom } from '#lib/popOut.ts';
   import { duration, hasRealDuration, isOverdue, now, time } from '#lib/passes.ts';
@@ -209,6 +210,9 @@
   const today = $derived(
     new Intl.DateTimeFormat([], { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(at)),
   );
+
+  /** The Room code full screen on this computer (say, on the projector), until Escape. It's always here, just hidden. */
+  let board = $state<HTMLDivElement | null>(null);
 </script>
 
 {#if !account.classes.length}
@@ -394,6 +398,7 @@
         {#if account.studentLink?.open && currentRoom()}
           <RoomCode code={currentRoom()!.code} size="small" />
           <div class="kiosk-actions">
+            <button class="btn btn-small" onclick={() => board?.requestFullscreen?.()}><Icon name="maximize" size={14} />Full screen</button>
             <button class="btn btn-small" onclick={popOutRoom}><Icon name="pop-out" size={14} />Pop out</button>
           </div>
         {:else if account.studentLink?.open}
@@ -407,6 +412,8 @@
     </div>
   </div>
 {/if}
+
+<div class="board-holder" bind:this={board}><RoomBoard /></div>
 
 {#if pairing}
   <PairingDialog
@@ -434,6 +441,11 @@
 {/if}
 
 <style>
+  /* Only shown while it's full screen. */
+  .board-holder:not(:fullscreen) {
+    display: none;
+  }
+
   /*
    * Home fits the window: the side column fills it top to bottom, and the
    * footer sits at the foot of the middle column, so nothing scrolls until the
