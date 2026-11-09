@@ -31,15 +31,9 @@
 {#if cls.attendance}<AttendanceToday {cls} />{/if}
 
 <section class="card">
-  <div class="roster-head">
-    <div>
-      <p class="eyebrow">Roster</p>
-      <h2>Students</h2>
-    </div>
-    <a class="btn btn-small" href="/roster"><Icon name="contact" size={14} />Open the Roster</a>
-  </div>
   {#if rows.length}
-    <div class="table-wrap">
+    <!-- The card holds only the table, so the column headers sit right at its top. -->
+    <div class="table-wrap flush">
       <table>
         <thead>
           <tr>
@@ -87,10 +81,6 @@
         </tbody>
       </table>
     </div>
-    <p class="muted small">
-      Click a student to edit them on the Roster, where their name, PIN and settings are the same in every class. Removed
-      students keep their history.
-    </p>
   {:else}
     <div class="empty">
       <span class="icon-tile"><Icon name="users" /></span>
@@ -101,12 +91,14 @@
 
 
 <style>
-  .roster-head {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: 12px;
+  .table-wrap.flush {
+    margin-top: -20px;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  /* The card's own border is the top edge here, so the headers don't draw a second one. */
+  .table-wrap.flush :global(th) {
+    border-top: 0;
   }
 
   .student-link {
