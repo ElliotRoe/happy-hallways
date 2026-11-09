@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { account, resetPassAllowance, setPassAllowance, setPassOptions } from '#lib/account.svelte.ts';
+  import { account, resetPassAllowance, setOverdueChime, setPassAllowance, setPassOptions } from '#lib/account.svelte.ts';
   import { shortDate } from '#lib/passes.ts';
   import RequestCard from '#lib/RequestCard.svelte';
 
@@ -185,6 +185,26 @@
         </select>
       </div>
     {/if}
+  </section>
+
+  <section class="card">
+    <div class="option-row">
+      <div>
+        <p class="eyebrow">Sounds</p>
+        <h2>Chime when a student is overdue</h2>
+        <p class="muted small">A soft chime on this computer when a pass runs over its expected time. The kiosk never makes it.</p>
+      </div>
+      <label class="switch">
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label="Chime when a student is overdue"
+          checked={!!account.overdueChime}
+          onchange={(event) => setOverdueChime(event.currentTarget.checked)}
+        />
+        <span aria-hidden="true"></span>
+      </label>
+    </div>
   </section>
 
   <RequestCard

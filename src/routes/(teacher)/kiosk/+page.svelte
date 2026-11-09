@@ -11,17 +11,25 @@
   } from '#lib/account.svelte.ts';
   import ConfirmDialog from '#lib/ConfirmDialog.svelte';
   import Icon from '#lib/Icon.svelte';
-  import { cancelPairing, refreshLink } from '#lib/link.svelte.ts';
+  import KioskArt from '#lib/KioskArt.svelte';
+  import { cancelPairing, kioskOnline, kioskState, refreshLink } from '#lib/link.svelte.ts';
   import PairingDialog from '#lib/PairingDialog.svelte';
+  import { time } from '#lib/passes.ts';
 
+  /**
+   * The Kiosk: set a teacher PIN, pair the screen by the door, then see whether
+   * it's connected. Settings on the left, a picture of the kiosk on the right.
+   */
   let newPin = $state('');
   let pinError = $state('');
   let changingPin = $state(false);
-  let confirmRemove = $state(false);
-
+  let confirmForget = $state(false);
   let pairing = $state(false);
+  let reconnecting = $state(false);
 
   const kiosk = $derived(account.kiosk);
+  const status = $derived(kioskState());
+  const setUp = $derived(!!account.pin && !!kiosk);
 
   function savePin(event: SubmitEvent) {
     event.preventDefault();
@@ -40,7 +48,8 @@
     changingPin = false;
   }
 
-  function pair() {
+  function pair(again = false) {
+    reconnecting = again;
     pairing = true;
   }
 
@@ -56,158 +65,187 @@
     goto('/door');
   }
 
-  function remove() {
+  function forget() {
     cancelPairing();
     removeKiosk();
     refreshLink();
-    confirmRemove = false;
+    confirmForget = false;
   }
 </script>
+
+<svelte:head>
+  <title>Kiosk · Happy Hallways</title>
+</svelte:head>
+
+{#snippet pinForm()}
+  <form class="stack" style="gap:10px" onsubmit={savePin}>
+    <label class="field" style="max-width:220px">
+      PIN (4 to 8 digits)
+      <input type="password" inputmode="numeric" autocomplete="off" bind:value={newPin} />
+    </label>
+    <div class="notice-bar" role="note">
+      <Icon name="alert-triangle" />
+      Please write this down so you don't forget it. It's hard to recover once you do.
+    </div>
+    {#if pinError}<p class="form-error" role="alert">{pinError}</p>{/if}
+    <div class="row">
+      <button class="btn btn-primary">Save PIN</button>
+      {#if changingPin}<button type="button" class="btn btn-quiet" onclick={() => (changingPin = false)}>Cancel</button>{/if}
+    </div>
+  </form>
+{/snippet}
 
 <div class="page">
   <header class="page-head">
     <div>
       <p class="eyebrow">Kiosk</p>
       <h1>The screen by your door</h1>
-      <p class="muted">
-        Students tap their name to sign out and back in. Use a spare tablet or Chromebook, or this computer. You can
-        have one kiosk at a time.
-      </p>
+      <p class="muted">Students tap their name to sign out and back in. Use a spare tablet or Chromebook, or this computer.</p>
     </div>
   </header>
 
-  {#if kiosk}
-    <div class="notice-bar" role="note">
-      <Icon name="alert-triangle" />
-      {#if kiosk.kind === 'device'}
-        Keep Happy Hallways open and awake on this laptop all day, with the lid open. The kiosk asks this laptop
-        before anyone leaves, so while the laptop is closed or asleep, students can only sign back in.
-      {:else}
-        Keep the kiosk screen open all day. While it's closed, students can't sign out.
+  <div class="device-layout">
+    <div class="settings">
+      {#if !setUp}
+        <ol class="steps card">
+          <li class={account.pin ? 'done' : 'now'}>
+            <span class="step-num">{#if account.pin}<Icon name="check" size={16} />{:else}1{/if}</span>
+            <div class="step-body">
+              <h2>Set a teacher PIN</h2>
+              {#if !account.pin || changingPin}
+                <p class="muted small">
+                  You'll type it at the kiosk to let a student go, switch class, or stop using the kiosk. Students
+                  shouldn't know it.
+                </p>
+                {@render pinForm()}
+              {:else}
+                <p class="muted small">Saved. <button class="link-button" onclick={() => (changingPin = true)}>Change it</button></p>
+              {/if}
+            </div>
+          </li>
+          <li class={account.pin ? 'now' : 'later'}>
+            <span class="step-num">2</span>
+            <div class="step-body">
+              <h2>Pair a device</h2>
+              {#if account.pin}
+                <p class="muted small">
+                  A tablet or Chromebook by the door talks straight to this laptop. Or make this computer the kiosk:
+                  it locks until you type your PIN, and you won't get overdue reminders while it's the kiosk.
+                </p>
+                <div class="row">
+                  <button class="btn btn-primary" onclick={() => pair()} disabled={account.networkBlocked}>
+                    <Icon name="kiosk" size={16} />Pair a device
+                  </button>
+                  <button class="btn" onclick={thisComputer}><Icon name="monitor" size={16} />Use this computer</button>
+                </div>
+                {#if account.networkBlocked}
+                  <div class="notice-bar" role="status">
+                    <Icon name="alert-triangle" />
+                    <div class="stack" style="gap:6px">
+                      <span>
+                        The last pairing attempt showed that this network won't let two devices connect directly, so
+                        only this computer can be the kiosk here.
+                      </span>
+                      <div><button class="btn btn-small" onclick={() => setNetworkBlocked(false)}>Try pairing again</button></div>
+                    </div>
+                  </div>
+                {/if}
+              {/if}
+            </div>
+          </li>
+          <li class="later">
+            <span class="step-num">3</span>
+            <div class="step-body">
+              <h2>Check it's connected</h2>
+            </div>
+          </li>
+        </ol>
+      {:else if kiosk}
+        <section class="card" aria-labelledby="status-title">
+          <p class="eyebrow" id="status-title">Status</p>
+          <p class="status-line"><span class="status-dot {status.dot}" aria-hidden="true"></span>{status.text}</p>
+          {#if kiosk.kind === 'this-computer'}
+            <p class="muted small">Open the kiosk screen when class starts. Leaving it needs your PIN.</p>
+            <div>
+              <button class="btn btn-primary" onclick={openDoor} disabled={!account.activeClass}>
+                <Icon name="lock" size={16} />Open kiosk screen
+              </button>
+            </div>
+          {:else if kioskOnline()}
+            <p class="muted small">
+              The kiosk asks this laptop before anyone leaves. Keep Happy Hallways open and awake here all day, with the
+              lid open.
+            </p>
+          {:else}
+            <p class="muted small">
+              {kiosk.lastSeenAt ? `Last connected at ${time(kiosk.lastSeenAt)}. ` : ''}Until it reconnects, students can
+              only sign back in there; those returns arrive when it does. Keep Happy Hallways open and awake on this laptop.
+            </p>
+            <div><button class="btn btn-primary" onclick={() => pair(true)}>Reconnect</button></div>
+          {/if}
+        </section>
+
+        <section class="card" aria-labelledby="settings-title">
+          <p class="eyebrow" id="settings-title">Settings</p>
+          <div class="setting-row">
+            <div>
+              <h3>Teacher PIN</h3>
+              <p class="muted small">To let a student go, switch class, or stop being a kiosk.</p>
+            </div>
+            {#if !changingPin}<button class="btn" onclick={() => (changingPin = true)}>Change PIN</button>{/if}
+          </div>
+          {#if changingPin}{@render pinForm()}{/if}
+          <div class="setting-row">
+            <div>
+              <h3>{kiosk.kind === 'device' ? 'A paired device' : 'This computer'}</h3>
+              <p class="muted small">You can have one kiosk at a time.</p>
+            </div>
+            <div class="row">
+              {#if kiosk.kind === 'device'}
+                <button class="btn" onclick={() => pair()}>Pair a different device</button>
+                <button class="btn" onclick={thisComputer}>Use this computer instead</button>
+              {:else}
+                <button class="btn" onclick={() => pair()}>Pair a device instead</button>
+              {/if}
+              <button class="btn btn-quiet" onclick={() => (confirmForget = true)}>
+                {kiosk.kind === 'device' ? 'Forget this device' : 'Stop using it'}
+              </button>
+            </div>
+          </div>
+        </section>
       {/if}
     </div>
-  {/if}
 
-  {#if !account.pin || changingPin}
-    <form class="card" onsubmit={savePin}>
-      <div>
-        <p class="eyebrow">{account.pin ? 'Change PIN' : 'Step 1'}</p>
-        <h2>{account.pin ? 'Choose a new teacher PIN' : 'Choose a teacher PIN'}</h2>
-        <p class="muted small">
-          You'll need it at the kiosk to let a student go, to switch class, or to stop using the device as a kiosk.
-          Students shouldn't know it.
-        </p>
-      </div>
-      <label class="field" style="max-width:220px">
-        PIN (4 to 8 digits)
-        <input type="password" inputmode="numeric" autocomplete="off" bind:value={newPin} />
-      </label>
-      {#if pinError}<p class="form-error" role="alert">{pinError}</p>{/if}
-      <div class="row">
-        <button class="btn btn-primary">Save PIN</button>
-        {#if changingPin}<button type="button" class="btn btn-quiet" onclick={() => (changingPin = false)}>Cancel</button>{/if}
-      </div>
-    </form>
-  {:else}
-    {#if kiosk}
-      <section class="card">
-        <div class="card-head">
-          <div>
-            <p class="eyebrow">Current kiosk</p>
-            {#if kiosk.kind === 'this-computer'}
-              <h2>This computer</h2>
-              <p class="muted small">Open the kiosk screen when class starts. Leaving it needs your PIN.</p>
-            {:else}
-              <h2>A paired device</h2>
-              <p class="muted small">
-                This laptop decides who may leave; the kiosk asks it every time. If they lose touch, students can still
-                sign back in there, and those returns arrive when it reconnects. Whether it's online right now is on Home.
-              </p>
-            {/if}
-          </div>
-          {#if kiosk.kind === 'this-computer'}
-            <button class="btn btn-primary" onclick={openDoor} disabled={!account.activeClass}>
-              <Icon name="lock" size={16} />Open kiosk screen
-            </button>
-          {/if}
-        </div>
-
-        <div class="row">
-          {#if kiosk.kind === 'device'}
-            <button class="btn" onclick={pair}>
-              <Icon name="kiosk" size={16} />Pair a different device
-            </button>
-            <button class="btn" onclick={thisComputer}><Icon name="monitor" size={16} />Use this computer instead</button>
-          {:else}
-            <button class="btn" onclick={pair}>
-              <Icon name="kiosk" size={16} />Pair a device instead
-            </button>
-          {/if}
-          <button class="btn btn-quiet" onclick={() => (confirmRemove = true)}>Stop using a kiosk</button>
-        </div>
-      </section>
-    {:else}
-      <div class="choice-cards">
-        <section class="choice-card" class:disabled={account.networkBlocked}>
-          <span class="icon-tile"><Icon name="kiosk" /></span>
-          <h2>Pair a device</h2>
-          <p class="muted small">
-            A tablet or Chromebook by the door. It talks straight to this laptop, so keep this laptop open and awake
-            while class is on.
-          </p>
-          <div><button class="btn btn-primary" onclick={pair}>Pair a device</button></div>
-        </section>
-        <section class="choice-card">
-          <span class="icon-tile"><Icon name="monitor" /></span>
-          <h2>Use this computer</h2>
-          <p class="muted small">No second device needed. This screen locks into kiosk mode until you enter your PIN.</p>
-          <p class="muted small">
-            You won't get overdue reminders while this screen is the kiosk. You can still see overdue passes in
-            History.
-          </p>
-          <div><button class="btn" onclick={thisComputer}>Use this computer</button></div>
-        </section>
-      </div>
-    {/if}
-
-    {#if account.networkBlocked}
-      <div class="notice-bar" role="status">
-        <Icon name="alert-triangle" />
-        <div class="stack" style="gap:6px">
-          <span>
-            The last pairing attempt showed that this network won't let two devices connect directly, so only this
-            computer can be the kiosk here.
-          </span>
-          <div><button class="btn btn-small" onclick={() => setNetworkBlocked(false)}>Try pairing again</button></div>
-        </div>
-      </div>
-    {/if}
-
-    <section class="card">
-      <div class="card-head">
-        <div>
-          <p class="eyebrow">Teacher PIN</p>
-          <h2>Set</h2>
-          <p class="muted small">Needed at the kiosk to let a student go, switch class, or stop being a kiosk.</p>
-        </div>
-        <button class="btn" onclick={() => (changingPin = true)}>Change PIN</button>
-      </div>
-    </section>
-  {/if}
+    <aside class="picture" aria-label="What the kiosk looks like">
+      <KioskArt />
+      <ul class="sees">
+        <li><Icon name="check" size={16} />Each student's first name and a few letters, to tap</li>
+        <li><Icon name="check" size={16} />Where they can go, and who's waiting in line</li>
+        <li class="never"><Icon name="x" size={16} />Never full names, history, or anything you've noted</li>
+      </ul>
+    </aside>
+  </div>
 </div>
 
 {#if pairing}
-  <PairingDialog onClose={() => (pairing = false)} onUseThisComputer={thisComputer} />
+  <PairingDialog
+    {reconnecting}
+    onClose={() => {
+      pairing = false;
+      reconnecting = false;
+    }}
+    onUseThisComputer={thisComputer}
+  />
 {/if}
 
-{#if confirmRemove}
+{#if confirmForget}
   <ConfirmDialog
-    title="Stop using a kiosk?"
+    title={kiosk?.kind === 'device' ? 'Forget this device?' : 'Stop using this computer as the kiosk?'}
     message={kiosk?.kind === 'device'
-      ? "The paired device will be disconnected. If students signed back in there while it was offline, those returns will still arrive the next time it connects."
+      ? "It won't be your kiosk any more. If students signed back in there while it was offline, those returns still arrive the next time it connects."
       : 'This computer will no longer be the kiosk.'}
-    confirmLabel="Stop using it"
-    onConfirm={remove}
-    onCancel={() => (confirmRemove = false)}
+    confirmLabel={kiosk?.kind === 'device' ? 'Forget it' : 'Stop using it'}
+    onConfirm={forget}
+    onCancel={() => (confirmForget = false)}
   />
 {/if}

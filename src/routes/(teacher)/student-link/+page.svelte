@@ -7,30 +7,25 @@
     findClass,
     newRoom,
     setStudentLink,
+    setStudentPins,
   } from '#lib/account.svelte.ts';
   import { displayName } from '#lib/roster.ts';
   import ConfirmDialog from '#lib/ConfirmDialog.svelte';
   import Icon from '#lib/Icon.svelte';
-  import { popOutRoom } from '#lib/popOut.ts';
-  import RoomBoard from '#lib/RoomBoard.svelte';
-  import RoomCode from '#lib/RoomCode.svelte';
+  import StudentDeviceArt from '#lib/StudentDeviceArt.svelte';
   import { currentRoom, maxViewers, studentLink } from '#lib/studentLink.svelte.ts';
   import StudentLinkCopy from '#lib/StudentLinkCopy.svelte';
 
   /**
-   * The Student link: students join each class's Room with its code or QR
-   * code, see how things stand, and, once they've set up their device with
-   * their PIN, sign out and back in from it. See docs/adr/0012, 0016 and 0019.
+   * Student devices: students join each class's Room with its code, see how
+   * things stand, and, once they've set up their device with their first name
+   * and PIN, sign out and back in from it. The code itself is on Home. See
+   * docs/adr/0012, 0016 and 0019.
    */
   const open = $derived(!!account.studentLink?.open);
+  const pins = $derived(!!account.studentPins);
   const room = $derived(currentRoom());
   const roomClass = $derived(findClass(room?.classId)?.name ?? '');
-
-  /** The board, full screen on this computer (say, on the projector), until Escape. It's always here, just hidden. */
-  let board: HTMLDivElement;
-  function fullScreen() {
-    board.requestFullscreen?.();
-  }
   const claims = $derived(
     account.claims
       .map((claim) => {
@@ -39,8 +34,7 @@
       })
       .sort((a, b) => a.name.localeCompare(b.name)),
   );
-  const anyPins = $derived(!!account.studentPins);
-  let confirmNewLink = $state(false);
+  let confirmNewCode = $state(false);
 
   const viewing = $derived(
     studentLink.viewers === 0
@@ -49,146 +43,174 @@
   );
 </script>
 
+<svelte:head>
+  <title>Student devices · Happy Hallways</title>
+</svelte:head>
+
 <div class="page">
   <header class="page-head">
     <div>
       <p class="eyebrow">Student devices</p>
-      <h1>Let students sign out from their seats</h1>
+      <h1>Sign out from their seats</h1>
       <p class="muted">
-        Each class gets its own code, new every time the class on the kiosk changes. Students type it at
-        <strong>/join</strong> or scan its QR code on their Chromebook or phone, and see whether passes are open and how
-        many are out or waiting. A student who sets up their device with their first name and PIN can sign out, come
-        back, join a line or ask you from it, until the class ends. With the link, you don't need a kiosk at all.
+        Students join each class on their own Chromebook or phone with a code, and sign out and back in from it. With
+        student devices, you don't need a kiosk at all.
       </p>
     </div>
   </header>
 
-  <div class="notice-bar" role="note">
-    <Icon name="alert-triangle" />
-    The link works only while Happy Hallways is open on this computer. If you close it, or this computer sleeps,
-    students see that they can't reach you, and nobody can sign out from it.
-  </div>
-
-  <section class="card">
-    <div class="card-head">
-      <div>
-        <p class="eyebrow">{open ? 'Open' : 'Closed'}</p>
-        <h2>{!open ? 'Student devices are off' : room ? `${roomClass}'s code` : 'Waiting for a class'}</h2>
-        <p class="muted small">
-          {!open
-            ? 'Nobody can join until you open it.'
-            : room
-              ? 'Show it on the board, or on the kiosk where it already appears. Anyone with the code sees how many students are out or waiting, never who.'
-              : 'A code appears when a class is on the kiosk.'}
-        </p>
-      </div>
-      {#if open}
-        <button class="btn" onclick={() => setStudentLink(false)}><Icon name="lock" size={16} />Turn off student devices</button>
-      {:else}
-        <button class="btn btn-primary" onclick={() => setStudentLink(true)}>
-          <Icon name="smartphone" size={16} />Turn on student devices
-        </button>
-      {/if}
-    </div>
-
-    {#if room}
-      <RoomCode code={room.code} />
-      <StudentLinkCopy />
-      <div class="row">
-        <button class="btn btn-small" onclick={fullScreen}><Icon name="maximize" size={14} />Full screen</button>
-        <button class="btn btn-small" onclick={popOutRoom}><Icon name="pop-out" size={14} />Pop out</button>
-      </div>
-      <p class="viewers" role="status">
-        <span class="status-dot" class:live={studentLink.viewers > 0} aria-hidden="true"></span>
-        {#if studentLink.status === 'connecting'}
-          Connecting…
-        {:else}
-          {viewing}
-        {/if}
-        <span class="muted small">(up to {maxViewers} at once)</span>
-      </p>
-      {#if studentLink.status === 'taken'}
-        <p class="muted small">Another Happy Hallways tab on this computer is sharing the link. Keep it open.</p>
-      {/if}
-      <div class="row">
-        <button class="btn btn-quiet" onclick={() => (confirmNewLink = true)}>
-          <Icon name="history" size={16} />New code
-        </button>
-      </div>
-    {/if}
-  </section>
-
-  <section class="card" aria-labelledby="claims-title">
-    <div class="card-head">
-      <div>
-        <p class="eyebrow">Students' devices</p>
-        <h2 id="claims-title">Who can sign out from their own device</h2>
-        <p class="muted small">
-          A student types their first name and PIN after joining. Their device then acts as them until the class ends,
-          or until you, or they, stop it. Students set up again in each class. Each student can use one device; setting
-          up another stops the first.
-          {#if !anyPins}Students need a PIN for this: turn on PINs on the <a href="/roster">Roster</a>. Until then the link only shows how things stand.{/if}
-        </p>
-      </div>
-      {#if claims.length}
-        <button class="btn" onclick={endAllClaims}>Stop all ({claims.length})</button>
-      {/if}
-    </div>
-    {#if claims.length}
-      <ul class="claims">
-        {#each claims as claim (claim.token)}
-          <li>
-            <strong>{claim.name}</strong>
-            <button class="btn btn-small btn-quiet" onclick={() => endClaim(claim.token)}>Stop</button>
+  <div class="device-layout">
+    <div class="settings">
+      {#if !open}
+        <ol class="steps card">
+          <li class={pins ? 'done' : 'now'}>
+            <span class="step-num">{#if pins}<Icon name="check" size={16} />{:else}1{/if}</span>
+            <div class="step-body">
+              <h2>Turn on student PINs</h2>
+              {#if pins}
+                <p class="muted small">On. Print each class's PIN cards from the <a href="/roster">Roster</a>.</p>
+              {:else}
+                <p class="muted small">
+                  A student sets up their device with their first name and PIN, so nobody signs out as someone else.
+                  Happy Hallways makes the PINs up; you can print them as cards from the Roster.
+                </p>
+                <div><button class="btn btn-primary" onclick={() => setStudentPins(true)}><Icon name="key" size={16} />Turn on student PINs</button></div>
+              {/if}
+            </div>
           </li>
-        {/each}
-      </ul>
-    {:else}
-      <p class="muted small">No student has set up a device yet.</p>
-    {/if}
-  </section>
+          <li class={pins ? 'now' : 'later'}>
+            <span class="step-num">2</span>
+            <div class="step-body">
+              <h2>Turn on student devices</h2>
+              <p class="muted small">
+                {pins
+                  ? 'Each class gets its own code. It works while Happy Hallways is open on this computer.'
+                  : 'You can turn them on without PINs, but then students can only see how things stand, not sign out.'}
+              </p>
+              <div>
+                <button class="btn" class:btn-primary={pins} onclick={() => setStudentLink(true)}>
+                  <Icon name="smartphone" size={16} />Turn on student devices
+                </button>
+              </div>
+            </div>
+          </li>
+          <li class="later">
+            <span class="step-num">3</span>
+            <div class="step-body">
+              <h2>Show students the code</h2>
+              <p class="muted small">It's on Home, in Devices, and on the kiosk. Students type it at <strong>/join</strong> or scan it.</p>
+            </div>
+          </li>
+        </ol>
+      {:else}
+        <section class="card" aria-labelledby="status-title">
+          <p class="eyebrow" id="status-title">Status</p>
+          <p class="status-line" role="status">
+            <span class="status-dot" class:live={studentLink.viewers > 0} aria-hidden="true"></span>
+            {studentLink.status === 'connecting' ? 'Connecting…' : viewing}
+          </p>
+          <p class="muted small">
+            {room ? `${roomClass} is open to join, up to ${maxViewers} at once.` : 'A code appears when a class is on.'}
+            Keep Happy Hallways open and awake on this computer; while it's closed, students can't reach you.
+          </p>
+          {#if studentLink.status === 'taken'}
+            <p class="muted small">Another Happy Hallways tab on this computer is sharing the link. Keep it open.</p>
+          {/if}
+          {#if room}
+            <StudentLinkCopy />
+            <p class="muted small">The code, full screen and pop-out are on <a href="/">Home</a>.</p>
+          {/if}
+          {#if !pins}
+            <div class="notice-bar" role="note">
+              <Icon name="alert-triangle" />
+              <div class="stack" style="gap:6px">
+                <span>Student PINs are off, so students can only watch, not sign out.</span>
+                <div><button class="btn btn-small" onclick={() => setStudentPins(true)}>Turn on student PINs</button></div>
+              </div>
+            </div>
+          {/if}
+        </section>
 
-  <section class="card">
-    <h2>What students see</h2>
-    <ul class="sees">
-      <li><Icon name="check" size={16} />The class on the kiosk, and whether passes are open or it's a no-pass time</li>
-      <li><Icon name="check" size={16} />How many students are out at each place, and how many are waiting in each line</li>
-      <li><Icon name="check" size={16} />On their own set-up device: their passes left, their place in line, and how long their own pass has run</li>
-      <li class="never">
-        <Icon name="x" size={16} />Never another student's name, how long anyone else has been out, your PIN, or anything you've set for a student
-      </li>
-    </ul>
-  </section>
+        <section class="card" aria-labelledby="claims-title">
+          <div class="card-head">
+            <div>
+              <h2 id="claims-title">Set-up devices</h2>
+              <p class="muted small">
+                Each acts as its student until the class ends, or until you, or they, stop it. One device per student.
+              </p>
+            </div>
+            {#if claims.length}
+              <button class="btn" onclick={endAllClaims}>Stop all ({claims.length})</button>
+            {/if}
+          </div>
+          {#if claims.length}
+            <ul class="claims">
+              {#each claims as claim (claim.token)}
+                <li>
+                  <strong>{claim.name}</strong>
+                  <button class="btn btn-small btn-quiet" onclick={() => endClaim(claim.token)}>Stop</button>
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="empty-box muted small">No student has set up a device yet.</p>
+          {/if}
+        </section>
+
+        <section class="card" aria-labelledby="settings-title">
+          <p class="eyebrow" id="settings-title">Settings</p>
+          <div class="setting-row">
+            <div>
+              <h3>Student devices</h3>
+              <p class="muted small">On. Turning them off stops every device.</p>
+            </div>
+            <button class="btn" onclick={() => setStudentLink(false)}><Icon name="lock" size={16} />Turn off student devices</button>
+          </div>
+          {#if room}
+            <div class="setting-row">
+              <div>
+                <h3>Class code</h3>
+                <p class="muted small">New every time the class changes. Get a new one if the code got out.</p>
+              </div>
+              <button class="btn" onclick={() => (confirmNewCode = true)}><Icon name="history" size={16} />New code</button>
+            </div>
+          {/if}
+          <div class="setting-row">
+            <div>
+              <h3>Student PINs</h3>
+              <p class="muted small">{pins ? 'On.' : 'Off.'} Change them, or print PIN cards, on the Roster.</p>
+            </div>
+            <a class="btn" href="/roster">Roster</a>
+          </div>
+        </section>
+      {/if}
+    </div>
+
+    <aside class="picture" aria-label="What students see">
+      <StudentDeviceArt />
+      <ul class="sees">
+        <li><Icon name="check" size={16} />Whether passes are open, and how many are out or waiting</li>
+        <li><Icon name="check" size={16} />On their own device: their passes left, their place in line, their own pass</li>
+        <li class="never"><Icon name="x" size={16} />Never another student's name, your PIN, or anything you've noted</li>
+      </ul>
+    </aside>
+  </div>
 </div>
 
-{#if confirmNewLink}
+{#if confirmNewCode}
   <ConfirmDialog
     title="Get a new code?"
     message="The old code stops working straight away, and every student has to join again with the new one and set up their device again."
     confirmLabel="New code"
     onConfirm={() => {
       newRoom();
-      confirmNewLink = false;
+      confirmNewCode = false;
     }}
-    onCancel={() => (confirmNewLink = false)}
+    onCancel={() => (confirmNewCode = false)}
   />
 {/if}
 
-<div class="board-holder" bind:this={board}><RoomBoard /></div>
-
 <style>
-  /* Only shown while it's full screen. */
-  .board-holder:not(:fullscreen) {
-    display: none;
-  }
-
-  .viewers {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 700;
-  }
-
   .claims {
     display: grid;
     gap: 6px;
@@ -204,27 +226,10 @@
     gap: 10px;
   }
 
-  .sees {
-    display: grid;
-    gap: 8px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-size: 14.5px;
-  }
-
-  .sees li {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .sees :global(.ui-icon) {
-    margin-top: 3px;
-    color: var(--accent);
-  }
-
-  .sees .never :global(.ui-icon) {
-    color: var(--danger);
+  .empty-box {
+    padding: 14px;
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius);
+    text-align: center;
   }
 </style>

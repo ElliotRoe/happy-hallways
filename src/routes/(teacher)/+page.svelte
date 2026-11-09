@@ -448,8 +448,10 @@
               }}>Reconnect</button
             >
             <button class="btn btn-small btn-quiet" onclick={disconnect}>Disconnect</button>
-          </div>
+            <a class="device-more" href="/kiosk">Kiosk settings<span aria-hidden="true">&nbsp;→</span></a>
+      </div>
         {/if}
+        <a class="device-more" href="/kiosk">Kiosk settings<span aria-hidden="true">&nbsp;→</span></a>
       </div>
 
       <div class="device" aria-labelledby="student-link-title">
@@ -480,6 +482,7 @@
           <p class="muted small">Students can join each class from their own Chromebook or phone with a code.</p>
           <div class="kiosk-actions"><a class="btn btn-small" href="/student-link">Turn on student devices</a></div>
         {/if}
+        <a class="device-more" href="/student-link">Student devices settings<span aria-hidden="true">&nbsp;→</span></a>
       </div>
     </section>
     </div>
@@ -707,6 +710,19 @@
     color: var(--muted);
     font-size: 13px;
     font-weight: 700;
+  }
+
+  .device-more {
+    justify-self: start;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .device-more:hover {
+    color: var(--accent);
+    text-decoration: underline;
   }
 
   .kiosk-actions {

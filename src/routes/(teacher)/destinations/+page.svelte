@@ -54,8 +54,7 @@
   {#if showBathroomTip}
     <aside class="tip-box" aria-label="Tip">
       <p>
-        Looking to create separate lines for different bathrooms, like a girls' line and a boys' line? Check out the
-        guide.
+        Looking to create separate lines for different bathrooms? Check out the guide.
       </p>
       <a class="btn btn-small" href="/guides/separate-bathroom-lines">Open guide</a>
       <button class="btn btn-small btn-quiet close" aria-label="Close this tip" onclick={() => markPopupsSeen([bathroomTip])}>
