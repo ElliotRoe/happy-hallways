@@ -57,6 +57,7 @@
   import StudentPinPad from '#lib/StudentPinPad.svelte';
   import SupportDetails from '#lib/SupportDetails.svelte';
   import { serveStudentLink } from '#lib/studentLink.svelte.ts';
+  import { keepAwake } from '#lib/wakeLock.ts';
   import { formatClock, nextClassPeriod } from '#lib/schedule.ts';
 
   const local = $derived(isLocal());
@@ -139,6 +140,12 @@
   }
   $effect(() => {
     if (reconnecting && (door.status === 'live' || door.device?.kioskId !== reconnectingFrom)) reconnecting = false;
+  });
+
+  // The door screen is up all day: keep this device's screen from sleeping while it's open.
+  onMount(() => {
+    keepAwake(true);
+    return () => keepAwake(false);
   });
 
   onMount(() => {

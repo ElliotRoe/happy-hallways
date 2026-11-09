@@ -21,6 +21,7 @@
       <h1>Where students can go</h1>
       <p class="muted">
         One list for all your classes. Students see these at the kiosk, with the color and icon you choose.
+        Want one boy and one girl out at once? <a href="/guides/separate-bathroom-lines">Give each bathroom its own line</a>.
       </p>
     </div>
     <button class="btn btn-primary" onclick={() => (editing = null)}><Icon name="plus" size={16} />Add destination</button>

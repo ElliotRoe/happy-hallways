@@ -33,7 +33,8 @@
           Each destination has its own limit
           <span class="muted small">
             Like 1 at a time for the Restroom and 3 for the Water Fountain, set on the
-            <a href="/destinations">Destinations</a> page. Each limited destination has its own line.
+            <a href="/destinations">Destinations</a> page. Each limited destination has its own line. For one boy
+            and one girl out at once, <a href="/guides/separate-bathroom-lines">give each bathroom its own line</a>.
           </span>
         </span>
       </label>

@@ -1241,7 +1241,9 @@ export function doorSetup(): DoorSetup {
           exempt: skipsAllowance(student) || undefined,
           alwaysGo: student.alwaysGo,
           pin: account.studentPins ? student.pin : undefined,
-        })),
+        }))
+        // A to Z by the name on the tile, so a student finds theirs quickly.
+        .sort((a, b) => a.name.localeCompare(b.name)),
     })),
     destinations: account.limitMode === 'class' ? classLimitOnEachDestination() : account.destinations,
     lineEnabled: account.lineEnabled,
