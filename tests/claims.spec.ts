@@ -30,7 +30,7 @@ test('a student claims their own device with their PIN, then signs out and back 
   await expect(student.getByRole('heading', { name: 'Period 2' })).toBeVisible({ timeout: 30_000 });
   await expect(student.locator('main')).not.toContainText('Sam');
   await expect(student.locator('main')).not.toContainText('Ava');
-  await student.getByRole('button', { name: 'Sign out from this device' }).click();
+  await student.getByRole('button', { name: 'Use this device for passes' }).click();
   await student.getByLabel('Your first name').fill('sam');
   await student.getByLabel('Your PIN').fill('9999');
   await student.getByRole('button', { name: 'Use this device' }).click();
@@ -66,7 +66,7 @@ test('a student claims their own device with their PIN, then signs out and back 
   // The teacher stops the device acting as Sam; it goes back to only looking.
   await laptop.getByRole('link', { name: 'Student link', exact: true }).click();
   await laptop.getByRole('listitem').filter({ hasText: 'Sam L.' }).getByRole('button', { name: 'Stop' }).click();
-  await expect(student.getByRole('button', { name: 'Sign out from this device' })).toBeVisible({ timeout: 10_000 });
+  await expect(student.getByRole('button', { name: 'Use this device for passes' })).toBeVisible({ timeout: 10_000 });
   expect(await student.evaluate(() => Object.keys(localStorage))).toEqual([]);
 });
 

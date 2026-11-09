@@ -335,7 +335,7 @@
             Not {me.name}? Stop using this device as them
           </button>
         {:else if view.claimsOpen && panel === 'setup'}
-          <p class="panel-title">Set up this device as yours</p>
+          <p class="panel-title">Use this device for passes</p>
           <form class="setup" onsubmit={sendSetup}>
             <label>Your first name <input bind:value={firstName} autocomplete="off" autocapitalize="words" /></label>
             <label>
@@ -345,13 +345,14 @@
             <button class="big primary" disabled={!firstName.trim() || !/^\d{3,6}$/.test(pin)}>Use this device</button>
           </form>
           {#if setupError}<p class="setup-error" role="alert">{setupError}</p>{/if}
-          <p class="muted-note">You only do this once. After that, this device signs you out and back in.</p>
+          <p class="muted-note">You do this once each class. Then you can leave class and come back from here.</p>
           <button class="link-btn" onclick={() => (panel = 'main')}>Cancel</button>
         {:else if view.claimsOpen}
-          <button class="big" onclick={startSetup}><Icon name="user-round" size={20} />Sign out from this device</button>
-          <p class="muted-note">Or use the kiosk by the door.</p>
+          <!-- "Sign out" here would read like logging out of an account; this device isn't anyone's yet. -->
+          <button class="big" onclick={startSetup}><Icon name="user-round" size={20} />Use this device for passes</button>
+          <p class="muted-note">Leave class and come back from here instead of the kiosk.</p>
         {:else}
-          <p class="muted-note">This page updates by itself. To sign out, use the kiosk by the door.</p>
+          <p class="muted-note">This page updates by itself. To leave class, use the kiosk by the door.</p>
         {/if}
       </section>
     </main>
@@ -389,10 +390,12 @@
 
 <style>
   /* Read on a Chromebook or a phone: big, friendly and plain. */
+  /* Exactly one screen tall on a phone too: 100vh counts the browser's address bar, 100dvh doesn't. */
   .student {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    min-height: 100dvh;
     max-width: 720px;
     margin: 0 auto;
     padding: 20px 16px 0;
@@ -634,7 +637,7 @@
     display: grid;
     justify-items: center;
     gap: 14px;
-    margin-top: 12vh;
+    margin-top: 8dvh;
     text-align: center;
   }
 
