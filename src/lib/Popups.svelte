@@ -35,8 +35,12 @@
     replaceState(url, {});
   });
 
+  /** A closed preview stays closed until the page reloads, though it was never counted as seen. */
+  let previewClosed = $state(false);
+
   const shownNews = $derived.by((): News[] => {
     if (preview) return news.slice(-1);
+    if (previewClosed) return [];
     if (asked === 'news') return [...news].reverse();
     const one = asked ? popupNamed(asked) : null;
     if (one && 'items' in one) return [one];
@@ -59,6 +63,7 @@
   function closeNews() {
     // A preview leaves it unseen, so it still shows when it goes out.
     if (!preview) markPopupsSeen(shownNews.map((each) => each.id));
+    else previewClosed = true;
     preview = false;
     asked = null;
   }
