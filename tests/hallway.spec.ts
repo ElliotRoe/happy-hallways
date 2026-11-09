@@ -774,6 +774,46 @@ test('a blocked student asks, and the teacher approves or denies on Home', async
   await expect(laptop.getByRole('row', { name: /Maya Ca\./ })).toContainText('Request denied');
 });
 
+test('a student in line can ask their teacher, or have the teacher let them go, without the kiosk crashing', async ({ browser }) => {
+  const laptop = await (await browser.newContext()).newPage();
+  const tablet = await (await browser.newContext()).newPage();
+  await skipTips(laptop);
+  await createClassWithRoster(laptop, 'Period 3');
+  await laptop.getByRole('link', { name: 'Pass Options' }).click();
+  await laptop.getByRole('switch', { name: 'Let students line up' }).check();
+  await setPin(laptop);
+  await laptop.getByRole('button', { name: 'Pair a device' }).click();
+  await expect(laptop.getByText(/Waiting for the device/)).toBeVisible({ timeout: 20_000 });
+  await tablet.goto(`/door?code=${(await laptop.locator('.pair-code').textContent())!.trim()}`);
+  await expect(tablet.getByText('Connected', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await laptop.getByRole('button', { name: 'Close' }).click();
+
+  // The Bathroom is full, so Maya Ch. and Maya Ca. line up.
+  await tablet.getByRole('button', { name: /Jordan E\./ }).click();
+  await tablet.getByRole('button', { name: /^Bathroom 1/ }).click();
+  await tablet.getByRole('button', { name: 'Done' }).click();
+  for (const name of [/Maya Ch\./, /Maya Ca\./]) {
+    await tablet.getByRole('button', { name }).click();
+    await tablet.getByRole('button', { name: /^Bathroom 1/ }).click();
+    await tablet.getByRole('button', { name: 'Join the line' }).click();
+    await tablet.getByRole('button', { name: 'Done' }).click();
+  }
+
+  // From the line, Maya Ch. asks her teacher.
+  await tablet.getByRole('button', { name: /Maya Ch\..*in line/ }).click();
+  await tablet.getByRole('button', { name: 'Ask my teacher' }).click();
+  await expect(tablet.getByRole('status').getByText('Asked your teacher')).toBeVisible();
+  await tablet.getByRole('button', { name: 'Done' }).click();
+  await goHome(laptop);
+  await expect(laptop.locator('.requests li', { hasText: 'Maya Ch.' })).toBeVisible({ timeout: 15_000 });
+
+  // From the line, the teacher lets Maya Ca. go with their PIN.
+  await tablet.getByRole('button', { name: /Maya Ca\..*in line/ }).click();
+  await tablet.getByRole('button', { name: 'Teacher: let them go' }).click();
+  await expect(tablet.getByRole('heading', { name: 'Teacher PIN' })).toBeVisible();
+  await expect(tablet.getByText('Internal Error')).toHaveCount(0);
+});
+
 test("a returning teacher sees what's changed once; a new one never does", async ({ page }) => {
   // A brand-new teacher.
   await createClassWithRoster(page, 'Period 1');

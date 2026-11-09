@@ -321,8 +321,10 @@
       class="door-btn"
       disabled={!canAsk()}
       onclick={() => {
+        // Read who and where before closing: closing the line pop-up clears what offer is worked out from.
+        const chosen = { ...offer };
         close?.();
-        ask(offer);
+        ask(chosen);
       }}><Icon name="hand" size={16} />Ask my teacher</button
     >
     {#if !canAsk()}<p class="ask-note">Your teacher's computer isn't connected</p>{/if}
@@ -332,8 +334,9 @@
   <button
     class="door-btn"
     onclick={() => {
+      const chosen = { ...offer };
       close?.();
-      askToLetGo(offer);
+      askToLetGo(chosen);
     }}><Icon name="lock" size={16} />Teacher: let them go</button
   >
 {/snippet}
