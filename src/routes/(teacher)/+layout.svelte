@@ -8,7 +8,6 @@
   import { askBeforeLeaving, leaveTo } from '#lib/leaving.ts';
   import { refreshLink } from '#lib/link.svelte.ts';
   import { onboarding } from '#lib/onboarding.svelte.ts';
-  import OverdueReminder from '#lib/OverdueReminder.svelte';
   import Sidebar from '#lib/Sidebar.svelte';
   import { serveStudentLink } from '#lib/studentLink.svelte.ts';
   import SiteFooter from '#lib/SiteFooter.svelte';
@@ -145,9 +144,8 @@
           </div>
         </Toast>
       {/if}
-      <OverdueReminder />
       {#if onboarding.showChecklist}<GettingStarted />{/if}
-      <!-- Requests and No passes, on every page, at the very bottom of the corner. -->
+      <!-- Needs you: Requests, Overdue Reminders and No passes, on every page, at the very bottom of the corner. -->
       {#if account.classes.length}<ControlDrawer />{/if}
     </div>
     <Popups />

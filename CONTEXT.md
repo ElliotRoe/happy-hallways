@@ -253,10 +253,18 @@ _Avoid_: Late, over time, flagged
 The teacher's laptop drawing the teacher's attention to a pass the moment it
 becomes Overdue, naming the student, where they went and how long they have been
 gone. It lasts until the student is back, whether they signed in or the teacher
-marked them back; it cannot be waved away while they are still out. It never
-appears on the kiosk, so when the teacher's own computer is the kiosk there is
-no reminder, and overdue passes are reviewed afterwards in History.
+marked them back; it cannot be waved away while they are still out. It shows in
+Needs you. It never appears on the kiosk, so when the teacher's own computer is
+the kiosk there is no reminder, and overdue passes are reviewed afterwards in
+History.
 _Avoid_: Alert, alarm, notification, flag
+
+**Needs you**:
+The panel in the corner of every teacher page holding what is waiting on the
+teacher right now: Requests to answer and Overdue Reminders, with how the class
+stands and the switch to stop or open passes. It slides up by itself when
+something new needs the teacher.
+_Avoid_: Notifications, inbox, control panel, requests tab
 
 **Correction**:
 A teacher's after-the-fact change to a pass — giving it to the student it really

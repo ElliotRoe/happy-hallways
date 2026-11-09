@@ -555,7 +555,8 @@ test('the teacher is reminded when a student is overdue', async ({ page }) => {
   const reminder = page.locator('.overdue-reminder');
   await expect(reminder).toBeHidden();
   await page.clock.runFor('06:00');
-  await expect(reminder).toContainText('Jordan E. has been at the Bathroom 1 for 6 min (expected 5)');
+  // Overdue Reminders appear in Needs you, the panel in the corner, which slides up for them.
+  await expect(reminder).toContainText('Jordan E. at the Bathroom 1 for 6 min (expected 5)');
   await expect(page).toHaveTitle(/^\(1\) Overdue · /);
 
   // It follows the teacher to every page, and goes once the student is marked back.

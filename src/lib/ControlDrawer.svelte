@@ -1,26 +1,46 @@
 <script lang="ts">
-  import { account, endNoPassTime, startNoPassTime, waitingRequests } from './account.svelte';
+  import { afterNavigate } from '$app/navigation';
+  import {
+    account,
+    endNoPassTime,
+    markReturned,
+    openPasses,
+    passStatus,
+    passStatusText,
+    startNoPassTime,
+    waitingRequests,
+  } from './account.svelte';
   import { clock } from './clock.svelte';
   import DestinationIcon from './DestinationIcon.svelte';
   import { answerRequest } from './door.svelte';
   import Icon from './Icon.svelte';
+  import { kioskOnline } from './link.svelte';
+  import { duration, isOverdue } from './passes';
   import Modal from './Modal.svelte';
   import { slide } from 'svelte/transition';
   import type { Block, PassRequest } from './types';
 
   /**
-   * The control drawer in the bottom-right corner of every teacher page, like a
-   * minimised email draft: a tab saying how many Requests are waiting, which
-   * slides up to answer them and to stop or open passes. It starts open, and
-   * this browser remembers whether the teacher left it open or closed. It slides
-   * up by itself when a Request comes in, and back down when the last is answered.
+   * Needs you: the drawer in the bottom-right corner of every teacher page, like
+   * a minimised email draft. Its tab counts what is waiting on the teacher, the
+   * Requests to answer and the students who are Overdue, and it slides up to
+   * show them, with how the class stands right now and the switch to stop or
+   * open passes. It starts open, and this browser remembers whether the teacher
+   * left it open or closed. It slides up by itself when something new needs the
+   * teacher, and back down when nothing does. The kiosk never shows it.
    */
   const requests = $derived(waitingRequests());
+  const overdue = $derived(
+    openPasses()
+      .filter((pass) => isOverdue(pass, clock.now))
+      .sort((a, b) => a.outAt.localeCompare(b.outAt)),
+  );
+  const waiting = $derived(requests.length + overdue.length);
   const openKey = 'hallway.drawer-open';
   let open = $state(readOpen());
-  // The count this drawer last saw. Starting from the count on load means arriving at a page doesn't count as news.
+  // What this drawer last saw. Starting from what's there on load means arriving at a page doesn't count as news.
   // svelte-ignore state_referenced_locally
-  let lastCount = requests.length;
+  let lastCount = waiting;
 
   function readOpen() {
     try {
@@ -40,10 +60,31 @@
   }
 
   $effect(() => {
-    const count = requests.length;
+    const count = waiting;
     if (count > lastCount) setOpen(true);
     if (count === 0 && lastCount > 0) setOpen(false);
     lastCount = count;
+  });
+
+  /** A paired kiosk that can't reach this tab may already have signed overdue students back in. */
+  const mayBeOutOfDate = $derived(account.kiosk?.kind === 'device' && !kioskOnline());
+
+  /** How the class on the door stands right now, in one line. */
+  const status = $derived(passStatus(clock.now));
+  const outNow = $derived(account.activeClass?.id ? openPasses(account.activeClass.id).length : 0);
+  const inLine = $derived(account.line.filter((spot) => spot.classId === account.activeClass?.id).length);
+
+  // Overdue students also show at the front of the tab's title, so a teacher in another tab still sees them.
+  const titlePrefix = /\(\d+\) Overdue · /;
+  let navigated = $state(0);
+  afterNavigate(() => navigated++);
+  $effect(() => {
+    void navigated;
+    const base = document.title.replace(titlePrefix, '');
+    document.title = overdue.length ? `(${overdue.length}) Overdue · ${base}` : base;
+  });
+  $effect(() => () => {
+    document.title = document.title.replace(titlePrefix, '');
   });
 
   const canAsk = $derived(account.kiosk?.kind === 'device' || !!account.studentLink?.open);
@@ -78,8 +119,9 @@
 
 <section class="drawer" class:open aria-labelledby="drawer-title" data-tip="tip-requests">
   <button class="tab" aria-expanded={open} onclick={() => setOpen(!open)}>
-    <span class="tab-title" id="drawer-title"><Icon name="hand" size={17} />Requests</span>
-    <span class="count" class:none={!requests.length}>{requests.length}</span>
+    <span class="tab-title" id="drawer-title">Needs you</span>
+    <span class="count" class:none={!requests.length} title="Requests"><Icon name="hand" size={13} />{requests.length}</span>
+    {#if overdue.length}<span class="count overdue" title="Overdue"><Icon name="clock" size={13} />{overdue.length}</span>{/if}
     {#if account.manualNoPass}<span class="no-pass-chip">No passes</span>{/if}
     <span class="chevron"><Icon name={open ? 'chevron-down' : 'chevron-up'} size={16} /></span>
   </button>
@@ -87,6 +129,29 @@
   {#if open}
     <!-- Slides up and down; instantly for anyone who has asked their computer for less motion. -->
     <div class="body" transition:slide={{ duration: reducedMotion ? 0 : 140 }}>
+      <p class="right-now">
+        <strong>{passStatusText[status]}</strong>
+        {#if account.activeClass?.id}<span class="muted"> · {outNow} out · {inLine} in line</span>{/if}
+      </p>
+
+      {#if overdue.length}
+        <!-- Overdue Reminders: they stay until the student is back; there's no dismissing them. -->
+        <ul class="overdue-reminder">
+          {#each overdue as pass (pass.id)}
+            <li>
+              <span class="overdue-text">
+                <Icon name="clock" size={15} /><strong>{pass.studentName}</strong> at the {pass.destination} for {duration(pass, clock.now)} min
+                <span class="muted">(expected {pass.minutes})</span>
+              </span>
+              <button class="btn btn-small" onclick={() => markReturned(pass.id)}><Icon name="check" size={14} />Mark back</button>
+            </li>
+          {/each}
+        </ul>
+        {#if mayBeOutOfDate}
+          <p class="muted small">The kiosk is offline, so this may be out of date. Check the door before marking anyone back.</p>
+        {/if}
+      {/if}
+
       {#if requests.length}
         <ul class="requests">
           {#each requests as request (request.id)}
@@ -105,11 +170,11 @@
             </li>
           {/each}
         </ul>
-      {:else}
+      {:else if !overdue.length}
         <p class="empty">
           {canAsk
-            ? 'No requests right now.'
-            : 'Students can ask you from a paired kiosk or their own device. When this computer is the kiosk, let them go with your PIN there.'}
+            ? 'Nothing needs you right now.'
+            : 'Nothing needs you right now. Students can ask you from a paired kiosk or their own device.'}
         </p>
       {/if}
 
@@ -198,6 +263,17 @@
     color: #fff;
     font-size: 12.5px;
     font-weight: 800;
+  }
+
+  .count {
+    display: inline-flex;
+    gap: 3px;
+  }
+
+  .count.overdue {
+    background: var(--warn-wash);
+    color: var(--warn);
+    border: 1px solid #ecd3ac;
   }
 
   .count.none {
@@ -293,6 +369,42 @@
     font-size: 12.5px;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .right-now {
+    margin: 0;
+    font-size: 13.5px;
+  }
+
+  .overdue-reminder {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .overdue-reminder li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid #ecd3ac;
+    border-radius: 10px;
+    background: var(--warn-wash);
+  }
+
+  .overdue-text {
+    flex: 1;
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    font-size: 13.5px;
+  }
+
+  .overdue-text :global(.ui-icon) {
+    color: var(--warn);
   }
 
   .empty {
