@@ -79,13 +79,14 @@
 
 {#snippet pinForm()}
   <form class="stack" style="gap:10px" onsubmit={savePin}>
-    <label class="field" style="max-width:220px">
-      PIN (4 to 8 digits)
-      <input type="password" inputmode="numeric" autocomplete="off" bind:value={newPin} />
-    </label>
-    <div class="notice-bar" role="note">
-      <Icon name="alert-triangle" />
-      Please write this down so you don't forget it. It's hard to recover once you do.
+    <div class="pin-row">
+      <label class="field">
+        PIN (4 to 8 digits)
+        <input type="password" inputmode="numeric" autocomplete="off" bind:value={newPin} />
+      </label>
+      <p class="pin-note" role="note">
+        <Icon name="alert-triangle" size={16} />Please write this down so you don't forget it. It's hard to recover once you do.
+      </p>
     </div>
     {#if pinError}<p class="form-error" role="alert">{pinError}</p>{/if}
     <div class="row">
@@ -249,3 +250,33 @@
     onCancel={() => (confirmForget = false)}
   />
 {/if}
+
+<style>
+  .pin-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 16px;
+  }
+
+  .pin-row .field {
+    width: 200px;
+  }
+
+  /* Beside the box, level with it. */
+  .pin-note {
+    display: flex;
+    flex: 1 1 220px;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 4px;
+    color: var(--warn);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .pin-note :global(.ui-icon) {
+    flex: none;
+    margin-top: 1px;
+  }
+</style>
