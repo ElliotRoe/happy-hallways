@@ -633,3 +633,14 @@ test('N5. a broken attendance mark is set aside, not allowed to make everything 
   expect(account.attendance.map((each: { studentId: string }) => each.studentId)).toEqual(['maya']);
   expect(account.unreadableAttendance).toEqual([{ classId: 'p1', day: 'nope', students: { sam: ['a'] } }]);
 });
+
+test('an update during class, with student devices on, starts that class Room straight away', async ({ page }) => {
+  // The older version kept one lasting Student link; the update leaves no Room until something starts one.
+  await seed(page, 'hallway.account', oldAccount({ activeClass: { id: 'p1', changedAt: at }, studentLink: { id: 'old-link', open: true } }));
+  await page.goto('/');
+  const card = page.locator('.device', { hasText: 'Student devices' });
+  await expect(card).not.toContainText('appears when a class is on');
+  await expect(card).toContainText(/\d{3} \d{3}/);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account.v2') ?? '{}'));
+  expect(saved.studentLink.room.classId).toBe('p1');
+});

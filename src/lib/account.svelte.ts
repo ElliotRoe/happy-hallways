@@ -512,6 +512,19 @@ function foldLegacy() {
 
 if (typeof window !== 'undefined') queueMicrotask(foldLegacy);
 
+/**
+ * A teacher who updated in the middle of a class, with student devices on,
+ * would otherwise have no Room until the class changed. Start one now.
+ */
+function startMissingRoom() {
+  const link = account.studentLink;
+  if (!link?.open || link.room || !account.activeClass?.id || unreadable.raw !== null) return;
+  refreshRoom();
+  save();
+}
+
+if (typeof window !== 'undefined') queueMicrotask(startMissingRoom);
+
 export function findClass(id: string | null | undefined) {
   return account.classes.find((cls) => cls.id === id);
 }
