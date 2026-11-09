@@ -30,7 +30,7 @@
 
 {#if cls.attendance}<AttendanceToday {cls} />{/if}
 
-<section class="card" data-tip="tip-roster">
+<section class="card">
   <div class="roster-head">
     <div>
       <p class="eyebrow">Roster</p>

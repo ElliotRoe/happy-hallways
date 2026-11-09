@@ -26,7 +26,7 @@
   const requests = $derived(waitingRequests().length);
 </script>
 
-<a class="status-box {status}" href="/" data-tip="tip-status">
+<a class="status-box {status}" href="/">
   <span class="pass-status {status}" role="img" title={passStatusText[status]} aria-label={passStatusText[status]}>
     <Icon name={passStatusIcon[status]} size={16} />
   </span>

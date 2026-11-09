@@ -4,8 +4,6 @@
  * remembers which ones they have closed.
  * - News is "What's changed": a big window, shown once on whatever page the
  *   teacher opens, to teachers who were using Happy Hallways before the change.
- * - A Tip points at one thing on one page, the first time the teacher sees
- *   it. A page's tips show one after another, as a short tour.
  * Add new news at the end of `news`.
  */
 
@@ -24,15 +22,6 @@ export type News = {
   also?: string;
   /** Where the teacher should go to act on the news, when it all happens in one place. */
   action?: { label: string; href: string };
-};
-
-export type Tip = {
-  id: string;
-  /** The page it belongs on: an exact path, or a pattern for one like a class page. */
-  page: string | RegExp;
-  /** It points at the element marked `data-tip="{id}"`, and waits until there is one. */
-  title: string;
-  text: string;
 };
 
 export const news: News[] = [
@@ -114,33 +103,6 @@ export const news: News[] = [
   },
 ];
 
-export const tips: Tip[] = [
-  {
-    id: 'tip-status',
-    page: '/',
-    title: 'Always one click away',
-    text: 'This box shows your class, schedule, kiosk and requests at a glance. Click it from any page to come back to Home.',
-  },
-  {
-    id: 'tip-requests',
-    page: '/',
-    title: 'Students’ requests land here',
-    text: 'When something stops a student at the kiosk, they can ask you, and the request shows up here as it happens. Approve, and their pass starts right away; deny, and the kiosk tells them “not right now”.',
-  },
-  {
-    id: 'tip-switch',
-    page: '/',
-    title: 'Early release? Switch here',
-    text: 'Click the class to put a different one on the kiosk by hand, or the schedule on the right to switch to another one for today.',
-  },
-  {
-    id: 'tip-roster',
-    page: /^\/classes\/(?!new)[^/]+$/,
-    title: 'Classes are your rosters',
-    text: 'Add and edit students here. Their passes moved to History: click a student to see theirs.',
-  },
-];
-
 export function newsIds() {
   return news.map((each) => each.id);
 }
@@ -158,14 +120,7 @@ export function unseenNews(seen: Record<string, string>) {
   return news.filter((each) => !seen[each.id]);
 }
 
-/** This page's tips not seen yet, in tour order. */
-export function unseenTips(path: string, seen: Record<string, string>) {
-  return tips.filter(
-    (tip) => !seen[tip.id] && (typeof tip.page === 'string' ? tip.page === path : tip.page.test(path)),
-  );
-}
-
 /** Any popup by id, for `?popup=` and the Help menu. */
 export function popupNamed(id: string) {
-  return news.find((each) => each.id === id) ?? tips.find((each) => each.id === id);
+  return news.find((each) => each.id === id);
 }

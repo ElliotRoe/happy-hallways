@@ -126,7 +126,7 @@
   }
 </script>
 
-<section class="drawer" class:open aria-labelledby="drawer-title" data-tip="tip-requests">
+<section class="drawer" class:open aria-labelledby="drawer-title">
   <button class="tab" aria-expanded={open} onclick={() => setOpen(!open)}>
     <span class="tab-title" id="drawer-title">Needs you</span>
     <span class="count" class:none={!requests.length} title="Requests"><Icon name="hand" size={13} />{requests.length}</span>
