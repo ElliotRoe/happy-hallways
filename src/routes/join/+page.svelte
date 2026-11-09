@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import BrandMark from '#lib/BrandMark.svelte';
 
   /**
@@ -8,7 +9,8 @@
    * which comes straight to /join/<code>. Each class period has a new code.
    * See docs/adr/0019.
    */
-  let code = $state('');
+  // A link may carry the code as ?code=123456; it's filled in, ready to join.
+  let code = $state(page.url.searchParams.get('code') ?? '');
   const digits = $derived(code.replace(/\D/g, ''));
 
   function join(event: SubmitEvent) {

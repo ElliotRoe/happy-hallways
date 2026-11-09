@@ -126,3 +126,10 @@ test('students type the class code at /join', async ({ page }) => {
   await page.getByRole('button', { name: 'Join' }).click();
   await expect(page).toHaveURL(/\/join\/481516$/);
 });
+
+test('a link with ?code= fills in the class code', async ({ page }) => {
+  await page.goto('/join?code=481516');
+  await expect(page.getByLabel('Class code')).toHaveValue('481516');
+  await page.getByRole('button', { name: 'Join' }).click();
+  await expect(page).toHaveURL(/\/join\/481516$/);
+});

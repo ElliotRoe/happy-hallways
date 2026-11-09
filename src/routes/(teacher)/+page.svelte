@@ -32,8 +32,7 @@
   import PassMarks from '#lib/PassMarks.svelte';
   import QuietScene, { seasons, type Season } from '#lib/QuietScene.svelte';
   import { page } from '$app/state';
-  import SiteFooter from '#lib/SiteFooter.svelte';
-  import { currentRoom, studentLink } from '#lib/studentLink.svelte.ts';
+  import { currentRoom, studentLink, studentLinkUrl } from '#lib/studentLink.svelte.ts';
   import RoomBoard from '#lib/RoomBoard.svelte';
   import RoomCode from '#lib/RoomCode.svelte';
   import { popOutRoom } from '#lib/popOut.ts';
@@ -211,6 +210,18 @@
     new Intl.DateTimeFormat([], { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(at)),
   );
 
+  /** The join link with the code already in it, to paste into Google Classroom or a chat. */
+  let copied = $state(false);
+  async function copyJoinLink() {
+    try {
+      await navigator.clipboard.writeText(studentLinkUrl());
+      copied = true;
+      setTimeout(() => (copied = false), 2000);
+    } catch {
+      // Copying needs a secure page in some browsers; the Student devices page shows the link to copy by hand.
+    }
+  }
+
   /** The Room code full screen on this computer (say, on the projector), until Escape. It's always here, just hidden. */
   let board = $state<HTMLDivElement | null>(null);
 </script>
@@ -333,7 +344,6 @@
       {:else}
         <QuietScene {season} message={account.activeClass?.onSchedule ? `No class right now. ${timing}.` : 'No class is on the kiosk. Choose one above.'} />
       {/if}
-      <div class="footer-slot"><SiteFooter /></div>
     </div>
 
     <div class="side">
@@ -354,7 +364,7 @@
               <button class="btn btn-small" onclick={thisComputer}>Use this computer</button>
             </div>
           {:else}
-            <a class="btn btn-small btn-primary" href="/kiosk">Set up the kiosk</a>
+            <a class="btn btn-small" href="/kiosk">Set up the kiosk</a>
           {/if}
         {:else if account.kiosk.kind === 'this-computer'}
           <div class="kiosk-actions">
@@ -398,6 +408,7 @@
         {#if account.studentLink?.open && currentRoom()}
           <RoomCode code={currentRoom()!.code} size="small" />
           <div class="kiosk-actions">
+            <button class="btn btn-small" onclick={copyJoinLink}><Icon name={copied ? 'check' : 'copy'} size={14} />{copied ? 'Copied' : 'Copy link'}</button>
             <button class="btn btn-small" onclick={() => board?.requestFullscreen?.()}><Icon name="maximize" size={14} />Full screen</button>
             <button class="btn btn-small" onclick={popOutRoom}><Icon name="pop-out" size={14} />Pop out</button>
           </div>
@@ -467,14 +478,6 @@
     flex-direction: column;
     gap: 22px;
     min-height: var(--fit);
-  }
-
-  .footer-slot {
-    margin-top: auto;
-  }
-
-  .footer-slot :global(.site-footer) {
-    padding-bottom: 0;
   }
 
   .home-head {
