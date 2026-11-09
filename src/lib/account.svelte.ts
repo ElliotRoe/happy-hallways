@@ -69,11 +69,21 @@ function packAttendance(marks: AttendanceMark[]): AttendanceLog {
   return log;
 }
 
-function unpackAttendance(log: AttendanceLog): AttendanceMark[] {
+function unpackAttendance(log: AttendanceLog, setAside: unknown[] = []): AttendanceMark[] {
   const marks: AttendanceMark[] = [];
   for (const [classId, days] of Object.entries(log)) {
     for (const [day, students] of Object.entries(days)) {
-      for (const [studentId, [status, arrived, tardy, flags = 0, name = '']] of Object.entries(students)) {
+      // A day that isn't a date can't be a mark; it's set aside, not allowed to make the whole Account unreadable.
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !students || typeof students !== 'object') {
+        setAside.push({ classId, day, students });
+        continue;
+      }
+      for (const [studentId, stored] of Object.entries(students)) {
+        if (!Array.isArray(stored) || !(stored[0] in statusOf)) {
+          setAside.push({ classId, day, students: { [studentId]: stored } });
+          continue;
+        }
+        const [status, arrived, tardy, flags = 0, name = ''] = stored as StoredMark;
         const [year, month, date] = day.split('-').map(Number);
         const arrivedAt =
           typeof arrived === 'number' ? new Date(year, month - 1, date, 0, 0, Math.round(arrived * 60)).toISOString() : undefined;
@@ -292,6 +302,15 @@ function fingerprint(text: string) {
   return `${text.length}:${(hash >>> 0).toString(36)}`;
 }
 
+/** The Requests in an older copy, by id, so only ones new since are taken in later. */
+function legacyRequestIdsOf(text: string) {
+  try {
+    return (readAccount(text)?.requests ?? []).map((request) => request.id);
+  } catch {
+    return [];
+  }
+}
+
 /** Saved text that can't be read is copied aside once (each different copy once), for support. */
 function keepUnreadableCopy(text: string) {
   try {
@@ -311,7 +330,10 @@ function readAccount(text: string): Account | null {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || Object.keys(parsed).length === 0) return null;
   if (!Array.isArray(parsed.classes)) throw new Error('The saved data has no classes.');
   if (parsed.attendanceLog) {
-    parsed.attendance = [...(parsed.attendance ?? []), ...unpackAttendance(parsed.attendanceLog)];
+    const setAside: unknown[] = [];
+    parsed.attendance = [...(parsed.attendance ?? []), ...unpackAttendance(parsed.attendanceLog, setAside)];
+    // Kept as it was, so nothing is thrown away; it's just not shown.
+    if (setAside.length) parsed.unreadableAttendance = [...(parsed.unreadableAttendance ?? []), ...setAside];
     delete parsed.attendanceLog;
   }
   // Marks saved before they were kept compactly had ids of their own; they take the same kind of id now.
@@ -344,7 +366,10 @@ function load(): Account {
         continue;
       }
       // Remember which version of the older key this has taken in, so later changes to it are noticed.
-      if (key === legacyKey) read.legacySeen = fingerprint(text);
+      if (key === legacyKey) {
+        read.legacySeen = fingerprint(text);
+        read.legacyRequestIds = read.requests.map((request) => request.id);
+      }
       else read.legacySeen ??= legacy ? fingerprint(legacy) : undefined;
       return read;
     } catch (error) {
@@ -368,6 +393,17 @@ export function onSave(listener: () => void) {
 /** Set when this browser has no room left to save: the teacher is asked to download a Backup. */
 export const storage = $state({ full: false });
 
+/** Whether this version's key already holds a copy that reads back. */
+function ownCopyIsSafe() {
+  const text = localStorage.getItem(storageKey);
+  if (!text) return false;
+  try {
+    return readAccount(text) !== null;
+  } catch {
+    return false;
+  }
+}
+
 function isQuotaError(error: unknown) {
   return error instanceof DOMException && (error.name === 'QuotaExceededError' || error.code === 22 || error.name === 'NS_ERROR_DOM_QUOTA_REACHED');
 }
@@ -381,9 +417,11 @@ function isQuotaError(error: unknown) {
 function write() {
   if (unreadable.raw !== null) return false;
   const text = storedText(account);
+  // Copies kept for support go first. The older version's copy goes only once this version's own copy is
+  // safely saved and readable: before that, it's the only copy there is.
   const spare = () => [
-    legacyKey,
     ...Object.keys(localStorage).filter((key) => key.startsWith('hallway.account.unreadable.') || key.startsWith('hallway.door.unreadable.')),
+    ...(ownCopyIsSafe() ? [legacyKey] : []),
   ];
   for (let attempt = 0; ; attempt++) {
     try {
@@ -458,9 +496,16 @@ function foldLegacy() {
   }
   account.legacySeen = seen;
   if (older) {
-    foldPasses(older.passes);
-    const known = new Set(account.requests.map((request) => request.id));
-    for (const request of older.requests) if (!known.has(request.id)) account.requests.push(request);
+    // A pass of a class removed here stays removed; one this version has, or a new one, comes in.
+    const classIds = new Set(account.classes.map((cls) => cls.id));
+    foldPasses(older.passes.filter((pass) => classIds.has(pass.classId)));
+    // Only Requests new in the older tab since last time: one answered here doesn't come back.
+    const seenBefore = new Set(account.legacyRequestIds ?? []);
+    const known = new Set([...account.requests, ...account.deniedRequests].map((request) => request.id));
+    for (const request of older.requests) {
+      if (!known.has(request.id) && !seenBefore.has(request.id) && classIds.has(request.classId)) account.requests.push(request);
+    }
+    account.legacyRequestIds = older.requests.map((request) => request.id);
   }
   save();
 }
@@ -1817,6 +1862,10 @@ export function importAccount(text: string, own = true) {
     restored.studentLink = restored.studentLink ? { open: false, room: null } : null;
     restored.claims = [];
   }
+  // Whatever this computer's older copy holds isn't part of the backup, so it's never folded into it.
+  const legacy = localStorage.getItem(legacyKey);
+  restored.legacySeen = legacy ? fingerprint(legacy) : undefined;
+  restored.legacyRequestIds = legacy ? legacyRequestIdsOf(legacy) : undefined;
   unreadable.raw = null;
   localStorage.setItem(storageKey, storedText(restored));
 }

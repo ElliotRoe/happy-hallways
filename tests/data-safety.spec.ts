@@ -477,12 +477,36 @@ test('C. when the browser is full, the older copy makes room; a year of attendan
     }
     return low;
   });
-  // An older copy so big that this version's copy of it can't fit beside it.
+  // N1. The first save, with no room for a second copy: the older copy is the only one, so it stays,
+  // nothing is lost, and the teacher is told.
   const big = { ...oldAccount(), pad: 'x'.repeat(Math.floor(room * 0.6)) };
   await seed(page, 'hallway.account', big);
-  await page.evaluate(async () => (await import('/src/lib/account.svelte.ts')).setPin('9753'));
-  const after = await page.evaluate(() => ({ legacy: localStorage.getItem('hallway.account'), v2: JSON.parse(localStorage.getItem('hallway.account.v2')!).pin }));
-  expect(after).toEqual({ legacy: null, v2: '9753' });
+  const first = await page.evaluate(async () => {
+    const m = await import('/src/lib/account.svelte.ts');
+    m.setPin('9753');
+    return { full: m.storage.full, legacy: localStorage.getItem('hallway.account') !== null, v2: localStorage.getItem('hallway.account.v2') };
+  });
+  expect(first).toEqual({ full: true, legacy: true, v2: null });
+  await page.reload();
+  expect(await page.evaluate(async () => (await import('/src/lib/account.svelte.ts')).account.classes[0]?.name)).toBe('Period 1');
+
+  // Once this version's own copy is saved, the older copy can make room for it.
+  await page.evaluate(
+    ({ older, own }) => {
+      localStorage.clear();
+      localStorage.setItem('hallway.account', JSON.stringify(older));
+      localStorage.setItem('hallway.account.v2', JSON.stringify(own));
+    },
+    { older: big, own: oldAccount({ version: 2 }) },
+  );
+  await page.goto('/settings');
+  const later = await page.evaluate(async (padding) => {
+    const m = await import('/src/lib/account.svelte.ts');
+    (m.account as unknown as { pad: string }).pad = 'y'.repeat(padding);
+    m.setPin('9753');
+    return { full: m.storage.full, legacy: localStorage.getItem('hallway.account'), pin: JSON.parse(localStorage.getItem('hallway.account.v2')!).pin };
+  }, Math.floor(room * 0.5));
+  expect(later).toEqual({ full: false, legacy: null, pin: '9753' });
 
   // 150 students, 180 school days: saved compactly, well under what a browser holds.
   await seed(page, 'hallway.account.v2', oldAccount({ version: 2, roster: [], classes: [] }));
@@ -548,4 +572,64 @@ test("an empty save under this version's key falls back to the older one, not to
   await page.goto('/settings');
   const name = await page.evaluate(async () => (await import('/src/lib/account.svelte.ts')).account.classes[0]?.name);
   expect(name).toBe('Period 1');
+});
+
+test("N2. restoring a backup never takes in this computer's older copy", async ({ page }) => {
+  const mine = oldAccount({ passes: [pass('mine-1', 'maya'), pass('mine-2', 'sam')], requests: [{ id: 'r-mine', classId: 'p1', studentId: 'maya', studentName: 'Maya C.', destination: 'Restroom', askedAt: at }] });
+  await seed(page, 'hallway.account', mine);
+  await page.evaluate(async () => (await import('/src/lib/account.svelte.ts')).setPin('9753'));
+  const theirs = JSON.stringify({ app: 'hallway', ...oldAccount({ version: 2, laptopPeerId: 'hallway-theirs', passes: [pass('theirs-1', 'maya')], legacySeen: 'from-their-computer' }) });
+  await page.evaluate(async (text) => (await import('/src/lib/account.svelte.ts')).importAccount(text, false), theirs);
+  await page.reload();
+  await page.waitForTimeout(500);
+  const account = await saved(page);
+  expect(account.passes.map((each: { id: string }) => each.id)).toEqual(['theirs-1']);
+  expect(account.requests ?? []).toEqual([]);
+});
+
+test('N3. an older tab never brings back a Request answered here, or passes of a class removed here', async ({ browser }) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const request = { id: 'r1', classId: 'p1', studentId: 'maya', studentName: 'Maya C.', destination: 'Restroom', askedAt: at };
+  const original = oldAccount({
+    classes: [...oldAccount().classes, { id: 'p9', name: 'Period 9', createdAt: at, members: [] }],
+    passes: [pass('gone', 'sam', { classId: 'p9' })],
+    requests: [request],
+  });
+  await seed(page, 'hallway.account', original);
+  await page.evaluate(async () => {
+    const m = await import('/src/lib/account.svelte.ts');
+    m.answered(m.account.requests[0], false);
+    m.deleteClass('p9');
+  });
+
+  // The older tab saves again: same waiting Request, same pass, and one new pass.
+  const olderTab = await context.newPage();
+  await olderTab.goto('/privacy');
+  await olderTab.evaluate(
+    ({ older }) => localStorage.setItem('hallway.account', JSON.stringify(older)),
+    { older: { ...original, passes: [...original.passes, pass('new', 'maya', { outAt: later, updatedAt: later })] } },
+  );
+  await expect.poll(async () => (await saved(page)).passes.map((each: { id: string }) => each.id)).toEqual(['new']);
+  const account = await saved(page);
+  expect(account.requests).toEqual([]);
+  expect(account.deniedRequests.map((each: { id: string }) => each.id)).toEqual(['r1']);
+  await context.close();
+});
+
+test('N5. a broken attendance mark is set aside, not allowed to make everything unreadable', async ({ page }) => {
+  await seed(
+    page,
+    'hallway.account.v2',
+    oldAccount({
+      version: 2,
+      attendance: [],
+      attendanceLog: { p1: { '2026-11-02': { maya: ['p', 540, null, 0, 'Maya C.'] }, nope: { sam: ['a'] } } },
+    }),
+  );
+  await expect(page.getByRole('heading', { name: "We couldn't read your Happy Hallways data" })).toBeHidden();
+  await page.evaluate(async () => (await import('/src/lib/account.svelte.ts')).setPin('9753'));
+  const account = await saved(page);
+  expect(account.attendance.map((each: { studentId: string }) => each.studentId)).toEqual(['maya']);
+  expect(account.unreadableAttendance).toEqual([{ classId: 'p1', day: 'nope', students: { sam: ['a'] } }]);
 });

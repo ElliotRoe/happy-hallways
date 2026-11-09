@@ -339,6 +339,10 @@ export type Account = {
   mergedIds?: Record<string, string>;
   /** A fingerprint of the older key as last taken in, so a tab still on the older version is noticed when it changes it. */
   legacySeen?: string;
+  /** Requests in the older key as last taken in, so one answered here isn't taken in again. */
+  legacyRequestIds?: string[];
+  /** Saved attendance that couldn't be read, kept as it was. */
+  unreadableAttendance?: unknown[];
   /** Pairs the teacher said are different students ("a|b", sorted), so they're never offered again. */
   dismissedMerges?: string[];
   /** Recent merges, newest last, each with what's needed to undo it. */
