@@ -1385,7 +1385,7 @@ test('students watch who is out and the line, live, from the student link', asyn
 
   // Home shows the link, and who's watching.
   await goHome(laptop);
-  await expect(laptop.getByLabel(`Class code ${url.split('/').pop()}`)).toBeVisible();
+  await expect(laptop.locator('.devices-card').getByLabel(`Class code ${url.split('/').pop()}`)).toBeVisible();
   await expect(laptop.getByText('1 joined')).toBeVisible();
 
   // Closing it tells the student; opening it again brings the page back by itself.
