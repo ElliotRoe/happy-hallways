@@ -196,7 +196,17 @@ function limitAt(destination: string) {
  * "Out" for a Private one (docs/adr/0021). The teacher's own screens always use the real name.
  */
 export function shownTo(destination: string) {
-  return destinationNamed(destination)?.private ? null : destination;
+  return destinationNamed(destination)?.private || !showsWhere() ? null : destination;
+}
+
+/** Whether the class on the kiosk shows where students went; off, every pass is "Out" (docs/adr/0022). */
+export function showsWhere() {
+  return !activeDoorClass()?.hideWhere;
+}
+
+/** Whether the class on the kiosk shows who's in each Line; off, only how many (docs/adr/0022). */
+export function showsLineNames() {
+  return !activeDoorClass()?.hideLineNames;
 }
 
 /** Whether a trip there has a Pass Limit, and so a Line. */

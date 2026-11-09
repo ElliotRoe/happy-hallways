@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import Modal from './Modal.svelte';
-  import { classPasses, deleteClass, setAttendance, updateClass } from './account.svelte';
+  import { classPasses, deleteClass, setAttendance, setVisibility, updateClass, visibilityOf } from './account.svelte';
   import { defaultAttendance } from './attendance';
   import Icon from './Icon.svelte';
   import type { Class } from './types';
@@ -17,6 +17,8 @@
   let graceMinutes = $state(cls.attendance?.graceMinutes ?? defaultAttendance.graceMinutes);
   // svelte-ignore state_referenced_locally
   let absentAfterMinutes = $state(cls.attendance?.absentAfterMinutes ?? defaultAttendance.absentAfterMinutes);
+  // svelte-ignore state_referenced_locally
+  const shows = $state(visibilityOf(cls));
   let confirmingDelete = $state(false);
 
   function save(event: SubmitEvent) {
@@ -33,6 +35,9 @@
           }
         : null,
     );
+    setVisibility(cls.id, 'names', shows.names);
+    setVisibility(cls.id, 'where', shows.where);
+    setVisibility(cls.id, 'lineNames', shows.lineNames);
     onClose();
   }
 
@@ -83,6 +88,31 @@
         </label>
       {/if}
 
+      <fieldset class="sees">
+        <legend>What students can see</legend>
+        <label class="check">
+          <input type="checkbox" bind:checked={shows.names} />
+          <span>
+            Show names on student devices
+            <span class="muted small">Watching devices see who's out and who's in line, as the kiosk shows them. Off, only how many.</span>
+          </span>
+        </label>
+        <label class="check">
+          <input type="checkbox" bind:checked={shows.where} />
+          <span>
+            Show where students went
+            <span class="muted small">Off, every pass is just “Out” at the kiosk and on devices. Lines and limits still work.</span>
+          </span>
+        </label>
+        <label class="check">
+          <input type="checkbox" bind:checked={shows.lineNames} />
+          <span>
+            Show who's in line
+            <span class="muted small">Off, only how many are waiting. Each student still sees their own place.</span>
+          </span>
+        </label>
+      </fieldset>
+
       <p class="muted small">When this class is on the kiosk, and its no-pass times, are set in <a href="/schedule">Schedule</a>.</p>
       <div class="dialog-actions" style="justify-content:space-between">
         <button type="button" class="btn btn-danger" onclick={() => (confirmingDelete = true)}>
@@ -96,3 +126,20 @@
     </form>
   {/if}
 </Modal>
+
+<style>
+  .sees {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 14px 0 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .sees legend {
+    padding: 0 0 10px;
+    font-size: 14px;
+    font-weight: 800;
+  }
+</style>

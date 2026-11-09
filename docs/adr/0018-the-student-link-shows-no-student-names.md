@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0022
+---
+
 # The Student link shows no student names
 
 The Student link (ADR 0012) showed anyone with it the Display Names of everyone

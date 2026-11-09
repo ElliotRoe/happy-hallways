@@ -32,6 +32,8 @@
     needsArrival,
     needsPin,
     shownTo,
+    showsLineNames,
+    showsWhere,
     noPassNow,
     onSchedule,
     openPassFor,
@@ -103,7 +105,8 @@
    * under a Class Limit, the one Class Line (with no destination of its own).
    */
   const lines = $derived(
-    hasClassLimit()
+    // When the class hides where students went, every line shows as one, so a name never sits beside a place (docs/adr/0022).
+    hasClassLimit() || !showsWhere()
       ? [{ destination: null, spots: waiting }].filter((each) => each.spots.length)
       : destinations
           .map((destination) => ({ destination: destination.label as string | null, spots: line(destination.label) }))
@@ -433,15 +436,21 @@
               <Icon name="users" size={22} />Line
             {/if}
           </strong>
-          {#each each.spots as spot, index (spot.studentId)}
-            <span class="line-spot" class:next={isUpNext(spot.studentId)}>
-              <span class="line-number">{index + 1}</span>
-              <!-- In the Class Line, each student shows where they're going. -->
-              {#if !each.destination}<DestinationIcon label={spot.destination} list={destinations} size={20} />{/if}
-              {spot.studentName}
-              {#if isUpNext(spot.studentId)}· your turn!{/if}
-            </span>
-          {/each}
+          {#if !showsLineNames()}
+            <!-- Who's in line is hidden in this class: only how many (docs/adr/0022). -->
+            <span class="line-spot">{each.spots.length} waiting</span>
+          {:else}
+            {#each each.spots as spot, index (spot.studentId)}
+              <span class="line-spot" class:next={isUpNext(spot.studentId)}>
+                <!-- Merged lines (where is hidden) have no single order to number. -->
+                {#if hasClassLimit() || showsWhere()}<span class="line-number">{index + 1}</span>{/if}
+                <!-- In the Class Line, each student shows where they're going. -->
+                {#if !each.destination && showsWhere()}<DestinationIcon label={spot.destination} list={destinations} size={20} />{/if}
+                {spot.studentName}
+                {#if isUpNext(spot.studentId)}· your turn!{/if}
+              </span>
+            {/each}
+          {/if}
         </div>
       {/each}
     {/if}
@@ -453,8 +462,9 @@
       <main class="names" class:closed={blocked} aria-label="Students in {cls.name}">
         {#each cls.students as student (student.id)}
           {@const pass = openPassFor(student.id)}
-          {@const spot = pass ? null : lineSpotFor(student.id)}
           {@const isNext = isUpNext(student.id)}
+          <!-- With who's in line hidden, a tile shows a place in line only when it's that student's turn (docs/adr/0022). -->
+          {@const spot = pass ? null : showsLineNames() || isNext ? lineSpotFor(student.id) : null}
           {@const asked = pass ? null : requestFor(student.id)}
           <!-- Where they went, never how long: the door carries no clock. See docs/adr/0003. -->
           <button class="name" class:out={pass} class:waiting={spot && !isNext} class:up-next={isNext} class:asked onclick={() => tap(student)}>
@@ -474,11 +484,11 @@
               </span>
             {:else if isNext && spot}
               <span class="name-status next-status">
-                <DestinationIcon label={spot.destination} list={destinations} size={22} />Your turn: tap!
+                {#if showsWhere()}<DestinationIcon label={spot.destination} list={destinations} size={22} />{/if}Your turn: tap!
               </span>
             {:else if spot}
               <span class="name-status waiting-status">
-                <DestinationIcon label={spot.destination} list={destinations} size={22} />{ordinal(spot.position)} in line
+                {#if showsWhere()}<DestinationIcon label={spot.destination} list={destinations} size={22} />{/if}{ordinal(spot.position)} in line
               </span>
             {:else if needsArrival(student.id)}
               <!-- Never "tardy" on the door's shared screen (docs/adr/0020). -->

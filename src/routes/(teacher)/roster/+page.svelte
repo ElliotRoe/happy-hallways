@@ -56,7 +56,7 @@
       <p class="muted">
         Every student you teach, once, whichever classes they're in. A student in two of your classes shares one PIN, one
         Pass Allowance and one history. Full names stay on this computer; the kiosk only ever shows a first name and a few
-        letters.
+        letters. That first name can be a nickname, the name students know them by.
       </p>
     </div>
   </header>

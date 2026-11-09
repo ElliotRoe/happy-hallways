@@ -161,8 +161,18 @@ export type Class = {
   members: Member[];
   /** Attendance for this class, when the teacher turns it on. See docs/adr/0020. */
   attendance?: AttendanceOptions;
+  /** What students can see on the kiosk and on their devices. Each is on unless set false. See docs/adr/0022. */
+  visibility?: Partial<ClassVisibility>;
   createdAt: string;
 };
+
+/**
+ * What students can see in one class. `names`: Watching devices see who's out
+ * and who's in line, by Display Name. `where`: where each student went (off,
+ * every pass is just "Out", but Lines and limits keep working). `lineNames`:
+ * who's in each Line (off, only how many). See docs/adr/0022.
+ */
+export type ClassVisibility = { names: boolean; where: boolean; lineNames: boolean };
 
 /** How a class takes Attendance. */
 export type AttendanceOptions = {
@@ -349,6 +359,9 @@ export type DoorClass = {
    * exactly when a student has it. An older kiosk ignores it and asks for none.
    */
   students: { id: string; name: string; exempt?: boolean; alwaysGo?: boolean; pin?: string }[];
+  /** Sent only when off; an older kiosk ignores them and shows everything. See docs/adr/0022. */
+  hideWhere?: true;
+  hideLineNames?: true;
 };
 
 /** Just enough of a past pass for the kiosk to count it against the Pass Allowance. */
@@ -471,8 +484,17 @@ export type StudentView = {
   whenPassesOpen?: string;
   /** How many students are out, at each destination with anyone there. Private destinations are one "Out", with no name. */
   out: { destination: string; count: number; private?: boolean }[];
-  /** How many are waiting in each Line. Under a Class Limit there is one, with no destination. */
-  lines: { destination: string | null; waiting: number }[];
+  /**
+   * Who's out, by Display Name, when the class shows names on student devices.
+   * `destination` is null for a Private destination or when the class hides where. See docs/adr/0022.
+   */
+  outNames?: { name: string; destination: string | null }[];
+  /**
+   * How many are waiting in each Line. Under a Class Limit, or when the class
+   * hides where, there is one, with no destination. `names`, in order, only
+   * when the class shows names and who's in line.
+   */
+  lines: { destination: string | null; waiting: number; names?: string[] }[];
   /** Just enough of each destination to draw its icon. */
   destinations: Pick<Destination, 'label' | 'color' | 'icon'>[];
   /** Whether a student can set up their own device: only while PINs are on. */

@@ -201,9 +201,9 @@ _Avoid_: Linking, connecting, logging in
 **Student device**:
 A student's own Chromebook or phone, used the way they use the kiosk, by
 joining the class's Room with its code or QR code. The teacher turns student
-devices on or off for all their classes. Anyone in the Room sees how
-the door stands in numbers: whether passes are open, and how many are out and
-waiting at each destination, never who. A device holding a Claim can also act as
+devices on or off for all their classes. Anyone in the Room sees what each
+class lets students see: by default what the kiosk shows, who's out and where
+and who's in each Line, or only how many (see ADR 0022). A device holding a Claim can also act as
 that student, and shows that student their own status: start a pass, sign back
 in, join or leave a Line, and make a Request. Students' devices connect to the
 teacher's computer, not the kiosk, so they work only while Happy Hallways is
@@ -225,6 +225,12 @@ when the class changes; the teacher can end one sooner, and the device goes back
 to only looking. Nothing about the Claim is kept anywhere but the teacher's
 computer and the student's device.
 _Avoid_: Login, account, sign-in, session, pairing (that makes a kiosk)
+
+**Watching**:
+A Student device in the Room without a Claim. It sees what the class lets
+students see, but can't act as anyone. The Student devices page counts devices
+as set up (holding a Claim) and Watching.
+_Avoid_: Anonymous mode, guest, viewer
 
 **Active Class**:
 The class the kiosk is currently showing. Changing it ends every pass still open

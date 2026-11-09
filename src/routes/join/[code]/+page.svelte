@@ -220,7 +220,17 @@
       {#if view.className}
         <section class="card" aria-labelledby="out-title">
           <h2 id="out-title">Out of class <span class="count">{outTotal}</span></h2>
-          {#if view.out.length}
+          {#if view.outNames?.length}
+            <!-- The class shows names on student devices (docs/adr/0022). -->
+            <ul class="tallies names-out">
+              {#each view.outNames as each, index (index)}
+                <li>
+                  {#if each.destination}<DestinationIcon label={each.destination} {list} size={26} />{/if}<span>{each.name}</span>
+                  <strong class="where">{each.destination ?? 'Out'}</strong>
+                </li>
+              {/each}
+            </ul>
+          {:else if view.out.length}
             <ul class="tallies">
               {#each view.out as each (each.destination)}
                 <li>
@@ -241,6 +251,11 @@
                 <li>
                   {#if line.destination}<DestinationIcon label={line.destination} {list} size={26} /><span>{line.destination}</span>{:else}<span>The line</span>{/if}
                   <strong>{line.waiting}</strong>
+                  {#if line.names?.length}
+                    <ol class="line-names">
+                      {#each line.names as name, index (index)}<li>{name}</li>{/each}
+                    </ol>
+                  {/if}
                 </li>
               {/each}
             </ul>
@@ -391,6 +406,23 @@
 </div>
 
 <style>
+  .names-out .where {
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .line-names {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin: 2px 0 0;
+    padding-left: 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
   /* Read on a Chromebook or a phone: big, friendly and plain. */
   /* Exactly one screen tall on a phone too: 100vh counts the browser's address bar, 100dvh doesn't. */
   .student {
@@ -666,5 +698,14 @@
   .icon-ring.warn {
     background: var(--warn-wash);
     color: var(--warn);
+  }
+
+  .tallies li:has(.line-names) {
+    flex-wrap: wrap;
+  }
+
+  .tallies .line-names li {
+    display: list-item;
+    font-size: 14px;
   }
 </style>

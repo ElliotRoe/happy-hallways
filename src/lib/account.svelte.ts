@@ -7,6 +7,7 @@ import { displayName, type ImportPlan, type RosterCandidate } from './roster';
 import { blankSchedule, clockOf, noPassAt, scheduledClassAt, withRulesOnPeriods } from './schedule';
 import { arrivalStatus, periodFor, today } from './attendance';
 import type {
+  ClassVisibility,
   Account,
   ActiveClass,
   AttendanceMark,
@@ -794,6 +795,26 @@ export function dismissRosterMerge() {
 }
 
 // ---------------------------------------------------------------------------
+// What students can see (docs/adr/0022)
+// ---------------------------------------------------------------------------
+
+/** What students can see in a class: everything, unless the teacher turned something off. */
+export function visibilityOf(cls: { visibility?: Partial<ClassVisibility> } | null | undefined): ClassVisibility {
+  return { names: true, where: true, lineNames: true, ...cls?.visibility };
+}
+
+export function setVisibility(classId: string, key: keyof ClassVisibility, on: boolean) {
+  const cls = findClass(classId);
+  if (!cls) return;
+  const next = { ...cls.visibility };
+  if (on) delete next[key];
+  else next[key] = false;
+  if (Object.keys(next).length) cls.visibility = next;
+  else delete cls.visibility;
+  save();
+}
+
+// ---------------------------------------------------------------------------
 // Attendance (docs/adr/0020)
 // ---------------------------------------------------------------------------
 
@@ -1297,6 +1318,8 @@ export function doorSetup(): DoorSetup {
         }))
         // A to Z by the name on the tile, so a student finds theirs quickly.
         .sort((a, b) => a.name.localeCompare(b.name)),
+      ...(visibilityOf(cls).where ? {} : { hideWhere: true as const }),
+      ...(visibilityOf(cls).lineNames ? {} : { hideLineNames: true as const }),
     })),
     destinations: account.limitMode === 'class' ? classLimitOnEachDestination() : account.destinations,
     lineEnabled: account.lineEnabled,

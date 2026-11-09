@@ -14,6 +14,7 @@ import {
   onSave,
   openPasses,
   passStatus,
+  visibilityOf,
 } from './account.svelte';
 import {
   activeDoorClass,
@@ -48,6 +49,7 @@ export const maxViewers = 60;
 /** Wrong PINs one device may try in a row before it has to wait a minute. */
 const maxPinTries = 5;
 const viewersKey = 'hallway.student-link-viewers';
+const setUpKey = 'hallway.student-link-set-up';
 
 export const studentLink = $state({
   /**
@@ -56,8 +58,10 @@ export const studentLink = $state({
    * this computer answers it.
    */
   status: 'off' as 'off' | 'connecting' | 'live' | 'taken',
-  /** How many students are watching right now. */
+  /** How many devices are in the Room right now, Watching or set up. */
   viewers: 0,
+  /** How many of them are set up (hold a Claim); the rest are Watching. */
+  setUp: 0,
 });
 
 /** The Room students join right now, if the link is open and a class is on. */
@@ -95,8 +99,24 @@ let claimed: string | null = null;
 let retryTimer = 0;
 let clockTimer = 0;
 const viewers = new Set<DataConnection>();
-/** The Claim each claimed device holds, by its connection. */
-const tokens = new Map<DataConnection, string>();
+/** The Claim each claimed device holds, by its connection. Recounts set-up devices whenever it changes. */
+class Tokens extends Map<DataConnection, string> {
+  set(connection: DataConnection, token: string) {
+    super.set(connection, token);
+    countViewers();
+    return this;
+  }
+  delete(connection: DataConnection) {
+    const had = super.delete(connection);
+    countViewers();
+    return had;
+  }
+  clear() {
+    super.clear();
+    countViewers();
+  }
+}
+const tokens = new Tokens();
 /** Wrong PINs tried by each device, and when it may try again. */
 const pinTries = new Map<DataConnection, { wrong: number; until: number }>();
 /** What viewers were last sent, so a save that changes nothing they see sends nothing. */
@@ -124,8 +144,10 @@ function turnAwayAll(message: StudentLinkMessage) {
 /** Other tabs show the count too, though only one tab answers the link. */
 function countViewers() {
   studentLink.viewers = viewers.size;
+  studentLink.setUp = [...viewers].filter((viewer) => tokens.has(viewer)).length;
   try {
     localStorage.setItem(viewersKey, String(viewers.size));
+    localStorage.setItem(setUpKey, String(studentLink.setUp));
   } catch {
     // Storage blocked: other tabs just won't see the count.
   }
@@ -188,6 +210,7 @@ export async function serveStudentLink() {
     // old connection, which the server frees shortly, so look again later.
     studentLink.status = 'taken';
     studentLink.viewers = Number(localStorage.getItem(viewersKey)) || 0;
+    studentLink.setUp = Number(localStorage.getItem(setUpKey)) || 0;
     retryTimer = window.setTimeout(() => {
       claimed = null;
       serveStudentLink();
@@ -384,49 +407,69 @@ if (typeof window !== 'undefined') {
   // Another tab answers the link, and tells this one how many are watching.
   window.addEventListener('storage', (event) => {
     if (event.key === viewersKey && studentLink.status === 'taken') studentLink.viewers = Number(event.newValue) || 0;
+    if (event.key === setUpKey && studentLink.status === 'taken') studentLink.setUp = Number(event.newValue) || 0;
   });
   // Closing this tab ends every viewer's connection.
   window.addEventListener('pagehide', () => {
-    if (studentLink.status === 'live') localStorage.setItem(viewersKey, '0');
+    if (studentLink.status === 'live') {
+      localStorage.setItem(viewersKey, '0');
+      localStorage.setItem(setUpKey, '0');
+    }
   });
 }
 
 /**
- * What every device on the link sees: the class on the door, whether passes
- * are open, and how many are out and waiting, in numbers. Never a name, never
- * how long anyone has been out, and nothing about how a student's passes are
- * treated. See docs/adr/0018.
+ * What every device in the Room sees, Watching or set up: the class on the
+ * door, whether passes are open, and how many are out and waiting. When the
+ * class shows names, also who's out and who's in each Line, by Display Name,
+ * as the kiosk shows them. Never how long anyone has been out, and nothing
+ * about how a student's passes are treated. See docs/adr/0022 and 0021.
  */
 export function studentView(at = Date.now()): StudentView {
   const classId = account.activeClass?.id ?? null;
+  const shows = visibilityOf(findClass(classId));
   const status = passStatus(at);
   const noPass = classId ? noPassNow(classId, at) : null;
   const out = classId ? openPasses(classId) : [];
+  const isPrivate = (label: string) => !!account.destinations.find((each) => each.label === label)?.private;
   const waiting = account.line.filter((spot) => spot.classId === classId);
+  const namesInLine = shows.names && shows.lineNames;
   const lines =
-    account.limitMode === 'class'
-      ? [{ destination: null as string | null, waiting: waiting.length }]
+    account.limitMode === 'class' || !shows.where
+      ? [{ destination: null as string | null, spots: waiting }]
       : account.destinations.map((each) => ({
           destination: each.label as string | null,
-          waiting: waiting.filter((spot) => spot.destination === each.label).length,
+          spots: waiting.filter((spot) => spot.destination === each.label),
         }));
 
   return {
     className: findClass(classId)?.name ?? null,
     status,
     ...(noPass ? { whenPassesOpen: whenPassesOpen(noPass) } : {}),
-    out: [
-      ...account.destinations
-        .filter((each) => !each.private)
-        .map((each) => ({ destination: each.label, count: out.filter((pass) => pass.destination === each.label).length })),
-      // Trips to Private destinations are one "Out", never where (docs/adr/0021).
-      {
-        destination: 'Out',
-        private: true,
-        count: out.filter((pass) => account.destinations.find((each) => each.label === pass.destination)?.private).length,
-      },
-    ].filter((each) => each.count),
-    lines: lines.filter((each) => each.waiting),
+    out: shows.where
+      ? [
+          ...account.destinations
+            .filter((each) => !each.private)
+            .map((each) => ({ destination: each.label, count: out.filter((pass) => pass.destination === each.label).length })),
+          // Trips to Private destinations are one "Out", never where (docs/adr/0021).
+          { destination: 'Out', private: true, count: out.filter((pass) => isPrivate(pass.destination)).length },
+        ].filter((each) => each.count)
+      : // The class hides where: every trip is one "Out" (docs/adr/0022).
+        [{ destination: 'Out', private: true, count: out.length }].filter((each) => each.count),
+    ...(shows.names
+      ? {
+          outNames: out
+            .map((pass) => ({ name: pass.studentName, destination: shows.where && !isPrivate(pass.destination) ? pass.destination : null }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        }
+      : {}),
+    lines: lines
+      .filter((each) => each.spots.length)
+      .map((each) => ({
+        destination: each.destination,
+        waiting: each.spots.length,
+        ...(namesInLine ? { names: each.spots.map((spot) => spot.studentName) } : {}),
+      })),
     destinations: account.destinations.map(({ label, color, icon }) => ({ label, color, icon })),
     claimsOpen: !!account.studentPins,
   };

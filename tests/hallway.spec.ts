@@ -1360,7 +1360,7 @@ test('students watch who is out and the line, live, from the student link', asyn
   await expect(student.getByRole('heading', { name: 'Period 6' })).toBeVisible({ timeout: 30_000 });
   await expect(student.getByText('Passes open')).toBeVisible();
   await expect(student.getByText("Everyone's in class.")).toBeVisible();
-  await expect(laptop.getByText('1 student viewing right now')).toBeVisible({ timeout: 10_000 });
+  await expect(laptop.getByText('0 set up · 1 watching')).toBeVisible({ timeout: 10_000 });
 
   // A pass at the kiosk reaches the laptop, and from there the student's page.
   await tablet.getByRole('button', { name: /Maya Ca\./ }).click();
@@ -1404,7 +1404,7 @@ test('students watch who is out and the line, live, from the student link', asyn
   await expect(laptop.getByText('Nobody is viewing right now')).toBeVisible({ timeout: 20_000 });
   await student.goto(newUrl);
   await expect(student.getByRole('region', { name: 'Waiting in line' })).toContainText('Bathroom 1', { timeout: 30_000 });
-  await expect(laptop.getByText('1 student viewing right now')).toBeVisible({ timeout: 10_000 });
+  await expect(laptop.getByText('0 set up · 1 watching')).toBeVisible({ timeout: 10_000 });
   await student.goto(url);
   await expect(student.getByRole('heading', { name: "Can't reach this class" })).toBeVisible({
     timeout: 40_000,
@@ -1473,7 +1473,7 @@ test('with two tabs open, one answers the student link, and the other takes over
 
   await student.goto(url);
   await expect(student.getByRole('heading', { name: 'Period 8' })).toBeVisible({ timeout: 30_000 });
-  await expect(secondTab.getByText('1 student viewing right now')).toBeVisible({ timeout: 10_000 });
+  await expect(secondTab.getByText('0 set up · 1 watching')).toBeVisible({ timeout: 10_000 });
 
   // The tab answering closes; the student's page says so, then finds the other tab.
   await firstTab.close();
@@ -1481,7 +1481,7 @@ test('with two tabs open, one answers the student link, and the other takes over
     timeout: 30_000,
   });
   await expect(student.getByRole('heading', { name: 'Period 8' })).toBeVisible({ timeout: 60_000 });
-  await expect(secondTab.getByText('1 student viewing right now')).toBeVisible({ timeout: 10_000 });
+  await expect(secondTab.getByText('0 set up · 1 watching')).toBeVisible({ timeout: 10_000 });
 });
 
 /** Taps a PIN on the kiosk's keypad, then Go. */

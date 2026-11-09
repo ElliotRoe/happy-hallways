@@ -297,7 +297,7 @@
         <div class="title-row">
           <h1>{today}</h1>
           <span class="badge status-badge {tone}" role="status"><Icon name={passStatusIcon[status]} size={15} />{passStatusText[status]}</span>
-          <span class="schedule-menu" data-tip="tip-switch">
+          <span class="schedule-menu">
             <MenuSelect label="Schedule" icon="calendar" value={live?.id ?? ''} options={scheduleOptions} onchoose={chooseSchedule} />
           </span>
         </div>
@@ -459,7 +459,7 @@
           <h3 id="student-link-title"><Icon name="smartphone" size={18} />Student devices</h3>
           {#if account.studentLink?.open}
             <span class="kiosk-state">
-              <span class="status-dot" class:live={studentLink.viewers > 0} aria-hidden="true"></span>{studentLink.viewers} joined
+              <span class="status-dot" class:live={studentLink.viewers > 0} aria-hidden="true"></span>{studentLink.setUp} set up · {studentLink.viewers - studentLink.setUp} watching
             </span>
           {/if}
         </div>

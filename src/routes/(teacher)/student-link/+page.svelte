@@ -36,10 +36,11 @@
   );
   let confirmNewCode = $state(false);
 
+  /** Devices in the Room: set up (holding a Claim) and Watching. */
   const viewing = $derived(
     studentLink.viewers === 0
       ? 'Nobody is viewing right now'
-      : `${studentLink.viewers} ${studentLink.viewers === 1 ? 'student' : 'students'} viewing right now`,
+      : `${studentLink.setUp} set up · ${studentLink.viewers - studentLink.setUp} watching`,
   );
 </script>
 
@@ -137,6 +138,7 @@
               <h2 id="claims-title">Set-up devices</h2>
               <p class="muted small">
                 Each acts as its student until the class ends, or until you, or they, stop it. One device per student.
+                {#if studentLink.viewers > studentLink.setUp}{studentLink.viewers - studentLink.setUp} more watching, not set up.{/if}
               </p>
             </div>
             {#if claims.length}
