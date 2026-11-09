@@ -63,7 +63,27 @@ async function seed(page: Page, key: string, value: unknown) {
   await page.goto('/settings');
 }
 
-const saved = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account.v2')!));
+
+/** Attendance is saved compactly (class → day → student → [status, arrived, tardy, flags, name]); spread back into marks. */
+type Log = Record<string, Record<string, Record<string, [string, number | null, number | null, number, string]>>>;
+function withMarks(account: { attendance?: object[]; attendanceLog?: Log }) {
+  const codes: Record<string, string> = { p: 'present', t: 'tardy', a: 'absent' };
+  const marks = Object.entries(account.attendanceLog ?? {}).flatMap(([classId, days]) =>
+    Object.entries(days).flatMap(([day, students]) =>
+      Object.entries(students).map(([studentId, [status, , tardy, flags]]) => ({
+        classId,
+        day,
+        studentId,
+        status: codes[status],
+        ...(typeof tardy === 'number' ? { tardyMinutes: tardy } : {}),
+        ...(flags & 4 ? { corrected: true } : {}),
+      })),
+    ),
+  );
+  return { ...account, attendance: [...(account.attendance ?? []), ...marks] };
+}
+
+const saved = async (page: Page) => withMarks(await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account.v2')!)));
 
 test('1. data that cannot be read is kept, never saved over, and the teacher can download it', async ({ page }) => {
   const broken = '{"version":1,"classes":[{"id":"p1"';
@@ -385,4 +405,147 @@ test('13. a backup says which version made it, and one from a newer version is r
   });
   expect(result.version).toBe(2);
   expect(result.refused).toContain('newer version');
+});
+
+test('A. a tab still on the older version keeps recording after the switch-over, and nothing is lost', async ({ browser }) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const original = oldAccount({ passes: [pass('old-1', 'maya')] });
+  await seed(page, 'hallway.account', original);
+  // This version saves (under its own key).
+  await page.evaluate(async () => (await import('/src/lib/account.svelte.ts')).setPin('9753'));
+
+  // The older tab records a pass and a return, writing only the older key.
+  const olderTab = await context.newPage();
+  await olderTab.goto('/privacy');
+  await olderTab.evaluate(
+    ({ older }) => localStorage.setItem('hallway.account', JSON.stringify(older)),
+    {
+      older: {
+        ...original,
+        passes: [
+          { ...pass('old-1', 'maya'), inAt: later, endedBy: 'student', updatedAt: later },
+          pass('old-2', 'sam', { outAt: later, updatedAt: later }),
+        ],
+      },
+    },
+  );
+  await expect
+    .poll(async () => (await saved(page)).passes.map((each: { id: string }) => each.id).sort())
+    .toEqual(['old-1', 'old-2']);
+  let account = await saved(page);
+  expect(account.pin).toBe('9753');
+  expect(account.passes.find((each: { id: string }) => each.id === 'old-1').inAt).toBe(later);
+
+  // Changed again while no new tab was open: taken in at the next load.
+  await page.close();
+  await olderTab.evaluate(
+    ({ older }) => localStorage.setItem('hallway.account', JSON.stringify(older)),
+    { older: { ...original, passes: [pass('old-3', 'maya', { outAt: later, updatedAt: later })] } },
+  );
+  const next = await context.newPage();
+  await next.goto('/settings');
+  await expect.poll(async () => (await saved(next)).passes.map((each: { id: string }) => each.id).sort()).toEqual(['old-1', 'old-2', 'old-3']);
+  account = await saved(next);
+  expect(account.pin).toBe('9753');
+  await context.close();
+});
+
+test('B. an open pass the teacher corrected still takes the student coming back at the kiosk', async ({ page }) => {
+  await seed(page, 'hallway.account.v2', oldAccount({ version: 2, passes: [pass('open', 'maya', { corrected: true })] }));
+  await page.evaluate(async () => (await import('/src/lib/account.svelte.ts')).receiveReturns([{ passId: 'open', inAt: '2026-11-02T15:07:00.000Z' }]));
+  const account = await saved(page);
+  expect(account.passes[0]).toMatchObject({ inAt: '2026-11-02T15:07:00.000Z', endedBy: 'student' });
+});
+
+test('C. when the browser is full, the older copy makes room; a year of attendance stays small', async ({ page }) => {
+  await page.goto('/privacy');
+  // How much fits in this browser, roughly.
+  const room = await page.evaluate(() => {
+    localStorage.clear();
+    let low = 0;
+    let high = 20_000_000;
+    while (high - low > 50_000) {
+      const size = Math.floor((low + high) / 2);
+      try {
+        localStorage.setItem('probe', 'x'.repeat(size));
+        low = size;
+      } catch {
+        high = size;
+      }
+      localStorage.removeItem('probe');
+    }
+    return low;
+  });
+  // An older copy so big that this version's copy of it can't fit beside it.
+  const big = { ...oldAccount(), pad: 'x'.repeat(Math.floor(room * 0.6)) };
+  await seed(page, 'hallway.account', big);
+  await page.evaluate(async () => (await import('/src/lib/account.svelte.ts')).setPin('9753'));
+  const after = await page.evaluate(() => ({ legacy: localStorage.getItem('hallway.account'), v2: JSON.parse(localStorage.getItem('hallway.account.v2')!).pin }));
+  expect(after).toEqual({ legacy: null, v2: '9753' });
+
+  // 150 students, 180 school days: saved compactly, well under what a browser holds.
+  await seed(page, 'hallway.account.v2', oldAccount({ version: 2, roster: [], classes: [] }));
+  const size = await page.evaluate(async () => {
+    const m = await import('/src/lib/account.svelte.ts');
+    const marks = [];
+    for (let day = 0; day < 180; day++) {
+      const date = new Date(2026, 8, 1 + day).toISOString().slice(0, 10);
+      for (let student = 0; student < 150; student++) {
+        marks.push({
+          id: '',
+          classId: `class-${student % 6}`,
+          studentId: `00000000-0000-4000-8000-${String(student).padStart(12, '0')}`,
+          studentName: 'Maya C.',
+          day: date,
+          status: 'present' as const,
+          arrivedAt: new Date(2026, 8, 1 + day, 9, 3).toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+    m.account.attendance = marks;
+    m.setPin('9753');
+    return localStorage.getItem('hallway.account.v2')!.length;
+  });
+  expect(size).toBeLessThan(2_500_000);
+});
+
+test('E. a kiosk whose saved data is broken says so, keeps one copy, and never deletes it', async ({ page }) => {
+  await page.goto('/privacy');
+  await page.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem('hallway.door.v2', '{"laptopPeerId":');
+  });
+  await page.goto('/door');
+  await expect(page.getByText("This kiosk couldn't read what it had saved.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("This kiosk couldn't read what it had saved.")).toBeVisible();
+  const storage = await page.evaluate(() => ({ ...localStorage }));
+  expect(storage['hallway.door.v2']).toBe('{"laptopPeerId":');
+  expect(Object.keys(storage).filter((key) => key.startsWith('hallway.door.unreadable.'))).toHaveLength(1);
+});
+
+test('F. reloading unreadable data keeps one copy of it, not one per reload', async ({ page }) => {
+  await seed(page, 'hallway.account', '{"broken":');
+  const screen = page.getByRole('heading', { name: "We couldn't read your Happy Hallways data" });
+  await expect(screen).toBeVisible();
+  await page.reload();
+  await expect(screen).toBeVisible();
+  await page.reload();
+  await expect(screen).toBeVisible();
+  const copies = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('hallway.account.unreadable.')).length);
+  expect(copies).toBe(1);
+});
+
+test("an empty save under this version's key falls back to the older one, not to a blank account", async ({ page }) => {
+  await page.goto('/privacy');
+  await page.evaluate((older) => {
+    localStorage.clear();
+    localStorage.setItem('hallway.account', JSON.stringify(older));
+    localStorage.setItem('hallway.account.v2', '{}');
+  }, oldAccount());
+  await page.goto('/settings');
+  const name = await page.evaluate(async () => (await import('/src/lib/account.svelte.ts')).account.classes[0]?.name);
+  expect(name).toBe('Period 1');
 });

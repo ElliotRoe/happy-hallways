@@ -337,6 +337,8 @@ export type Account = {
   attendanceRules?: AttendanceOptions;
   /** Students merged away, each to the student they became, so a kiosk that missed the merge can't bring them back. */
   mergedIds?: Record<string, string>;
+  /** A fingerprint of the older key as last taken in, so a tab still on the older version is noticed when it changes it. */
+  legacySeen?: string;
   /** Pairs the teacher said are different students ("a|b", sorted), so they're never offered again. */
   dismissedMerges?: string[];
   /** Recent merges, newest last, each with what's needed to undo it. */

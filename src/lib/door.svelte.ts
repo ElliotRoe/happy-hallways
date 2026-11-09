@@ -90,7 +90,9 @@ function loadDevice(): PairedDevice | null {
     if (saved) {
       unreadableDevice = true;
       try {
-        localStorage.setItem(`hallway.door.unreadable.${Date.now()}`, saved);
+        // One copy of each different unreadable save, kept for support.
+        const kept = Object.keys(localStorage).some((key) => key.startsWith('hallway.door.unreadable.') && localStorage.getItem(key) === saved);
+        if (!kept) localStorage.setItem(`hallway.door.unreadable.${Date.now()}`, saved);
       } catch {
         // No room for a copy; the original stays where it was.
       }
@@ -127,6 +129,8 @@ export const door = $state({
   denied: {} as Record<string, number>,
   /** The teacher's computer is on an older version that can't answer this kiosk, until it reloads. */
   laptopOutdated: false,
+  /** What this kiosk saved couldn't be read. A copy is kept; pairing again starts afresh. */
+  unreadableSaved: unreadableDevice,
 });
 
 /** Whether this kiosk can ask the teacher's computer right now: connected, and on a version that answers. */
@@ -1084,6 +1088,9 @@ export async function pairWithCode(code: string) {
       clearTimeout(timer);
       clearTimeout(slowTimer);
       if (previous) hangUp();
+      // Pairing again after saved data couldn't be read: the copy is kept aside, and this device saves afresh.
+      unreadableDevice = false;
+      door.unreadableSaved = false;
       // Pairing again keeps any returns this device hasn't handed over yet.
       door.device = {
         laptopPeerId: message.laptopPeerId,

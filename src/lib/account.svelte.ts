@@ -48,6 +48,62 @@ export const accountVersion = 2;
 /** What this version's teacher's computer understands from a kiosk: 2 is a kiosk that asks it for everything (docs/adr/0014). */
 export const doorProtocol = 2;
 
+/**
+ * Attendance is one mark per student, class and day, so a year of it is large.
+ * It's saved compactly: by class, then day, then student, as
+ * [status, minutes after midnight they arrived, minutes tardy, flags, name].
+ */
+type StoredMark = [status: 'p' | 't' | 'a', arrived?: number | null, tardy?: number | null, flags?: number, name?: string];
+type AttendanceLog = Record<string, Record<string, Record<string, StoredMark>>>;
+const statusCode = { present: 'p', tardy: 't', absent: 'a' } as const;
+const statusOf = { p: 'present', t: 'tardy', a: 'absent' } as const;
+
+function packAttendance(marks: AttendanceMark[]): AttendanceLog {
+  const log: AttendanceLog = {};
+  for (const mark of marks) {
+    const arrived = mark.arrivedAt ? new Date(mark.arrivedAt) : null;
+    const flags = (mark.excused ? 1 : 0) | (mark.goneForDay ? 2 : 0) | (mark.corrected ? 4 : 0);
+    const stored: StoredMark = [statusCode[mark.status], arrived ? arrived.getHours() * 60 + arrived.getMinutes() + arrived.getSeconds() / 60 : null, mark.tardyMinutes ?? null, flags, mark.studentName];
+    ((log[mark.classId] ??= {})[mark.day] ??= {})[mark.studentId] = stored;
+  }
+  return log;
+}
+
+function unpackAttendance(log: AttendanceLog): AttendanceMark[] {
+  const marks: AttendanceMark[] = [];
+  for (const [classId, days] of Object.entries(log)) {
+    for (const [day, students] of Object.entries(days)) {
+      for (const [studentId, [status, arrived, tardy, flags = 0, name = '']] of Object.entries(students)) {
+        const [year, month, date] = day.split('-').map(Number);
+        const arrivedAt =
+          typeof arrived === 'number' ? new Date(year, month - 1, date, 0, 0, Math.round(arrived * 60)).toISOString() : undefined;
+        const mark: AttendanceMark = {
+          id: `${classId}|${day}|${studentId}`,
+          classId,
+          studentId,
+          studentName: name,
+          day,
+          status: statusOf[status],
+          updatedAt: arrivedAt ?? new Date(year, month - 1, date).toISOString(),
+        };
+        if (arrivedAt) mark.arrivedAt = arrivedAt;
+        if (typeof tardy === 'number') mark.tardyMinutes = tardy;
+        if (flags & 1) mark.excused = true;
+        if (flags & 2) mark.goneForDay = true;
+        if (flags & 4) mark.corrected = true;
+        marks.push(mark);
+      }
+    }
+  }
+  return marks;
+}
+
+/** The Account as saved: attendance compact, everything else as it is. */
+function storedText(value: Account) {
+  const { attendance, ...rest } = $state.snapshot(value) as Account;
+  return JSON.stringify({ ...rest, attendance: [], attendanceLog: packAttendance(attendance) });
+}
+
 function blankAccount(): Account {
   return {
     version: accountVersion,
@@ -229,34 +285,76 @@ const fromOlderVersions = {
  */
 export const unreadable = $state({ raw: null as string | null, error: '' });
 
-/** The saved Account, from this version's key, or the older one before this version has saved. */
-function savedText(): string | null {
-  return localStorage.getItem(storageKey) ?? localStorage.getItem(legacyKey);
+/** A short fingerprint of saved text, to notice when a tab on the older version has changed the older key. */
+function fingerprint(text: string) {
+  let hash = 5381;
+  for (let index = 0; index < text.length; index++) hash = ((hash << 5) + hash + text.charCodeAt(index)) | 0;
+  return `${text.length}:${(hash >>> 0).toString(36)}`;
+}
+
+/** Saved text that can't be read is copied aside once (each different copy once), for support. */
+function keepUnreadableCopy(text: string) {
+  try {
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index)!;
+      if (key.startsWith('hallway.account.unreadable.') && localStorage.getItem(key) === text) return;
+    }
+    localStorage.setItem(`hallway.account.unreadable.${Date.now()}`, text);
+  } catch {
+    // No room for a copy; the original is still where it was, since nothing saves over it.
+  }
+}
+
+/** Reads one saved Account. Throws when it can't; returns null when it holds nothing (`{}`, `null`, `[]`). */
+function readAccount(text: string): Account | null {
+  const parsed = JSON.parse(text);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || Object.keys(parsed).length === 0) return null;
+  if (!Array.isArray(parsed.classes)) throw new Error('The saved data has no classes.');
+  if (parsed.attendanceLog) {
+    parsed.attendance = [...(parsed.attendance ?? []), ...unpackAttendance(parsed.attendanceLog)];
+    delete parsed.attendanceLog;
+  }
+  // Marks saved before they were kept compactly had ids of their own; they take the same kind of id now.
+  for (const mark of parsed.attendance ?? []) mark.id = `${mark.classId}|${mark.day}|${mark.studentId}`;
+  const account = upgrade({ ...blankAccount(), ...fromOlderVersions, ...parsed });
+  account.version = accountVersion;
+  return account;
 }
 
 function load(): Account {
   let saved: string | null = null;
+  let legacy: string | null = null;
   try {
-    saved = savedText();
+    saved = localStorage.getItem(storageKey);
+    legacy = localStorage.getItem(legacyKey);
   } catch {
     // Storage blocked: start empty rather than not at all. Saving will fail the same way, so nothing is overwritten.
     return blankAccount();
   }
-  if (!saved) return blankAccount();
-  try {
-    const account = upgrade({ ...blankAccount(), ...fromOlderVersions, ...JSON.parse(saved) });
-    account.version = accountVersion;
-    return account;
-  } catch (error) {
-    unreadable.raw = saved;
-    unreadable.error = error instanceof Error ? error.message : String(error);
+  for (const [text, key] of [
+    [saved, storageKey],
+    [legacy, legacyKey],
+  ] as const) {
+    if (!text) continue;
     try {
-      localStorage.setItem(`hallway.account.unreadable.${Date.now()}`, saved);
-    } catch {
-      // No room for a copy; the original is still where it was, since nothing saves over it.
+      const read = readAccount(text);
+      if (!read) {
+        // Holds nothing: keep a copy, and fall back to the older key.
+        if (key === storageKey) keepUnreadableCopy(text);
+        continue;
+      }
+      // Remember which version of the older key this has taken in, so later changes to it are noticed.
+      if (key === legacyKey) read.legacySeen = fingerprint(text);
+      else read.legacySeen ??= legacy ? fingerprint(legacy) : undefined;
+      return read;
+    } catch (error) {
+      unreadable.raw = text;
+      unreadable.error = error instanceof Error ? error.message : String(error);
+      keepUnreadableCopy(text);
+      return blankAccount();
     }
-    return blankAccount();
   }
+  return blankAccount();
 }
 
 export const account: Account = $state(load());
@@ -267,11 +365,39 @@ export function onSave(listener: () => void) {
   afterSave.push(listener);
 }
 
-/** Writes the Account, unless what was saved couldn't be read: then nothing is ever written over it. */
+/** Set when this browser has no room left to save: the teacher is asked to download a Backup. */
+export const storage = $state({ full: false });
+
+function isQuotaError(error: unknown) {
+  return error instanceof DOMException && (error.name === 'QuotaExceededError' || error.code === 22 || error.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+}
+
+/**
+ * Writes the Account, unless what was saved couldn't be read: then nothing is
+ * ever written over it. When the browser is out of room, it makes room by
+ * letting go of the older version's copy, then copies kept for support, and
+ * tries again; if it still can't, the teacher is told to download a Backup.
+ */
 function write() {
   if (unreadable.raw !== null) return false;
-  localStorage.setItem(storageKey, JSON.stringify(account));
-  return true;
+  const text = storedText(account);
+  const spare = () => [
+    legacyKey,
+    ...Object.keys(localStorage).filter((key) => key.startsWith('hallway.account.unreadable.') || key.startsWith('hallway.door.unreadable.')),
+  ];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      localStorage.setItem(storageKey, text);
+      storage.full = false;
+      return true;
+    } catch (error) {
+      if (!isQuotaError(error)) throw error;
+      storage.full = true;
+      const next = spare().find((key) => localStorage.getItem(key) !== null);
+      if (!next || attempt > 50) return false;
+      localStorage.removeItem(next);
+    }
+  }
 }
 
 function save() {
@@ -292,15 +418,54 @@ export function onReload(listener: () => void) {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
-    // Before this version has saved, a tab on the older version may still change the older key.
+    if (event.newValue === null || unreadable.raw !== null) return;
+    // A tab still on the older version recorded something: take in its passes, without losing anything here.
+    if (event.key === legacyKey && localStorage.getItem(storageKey) !== null) {
+      foldLegacy();
+      return;
+    }
+    // Before this version has saved, the older key is still the record.
     const watched = event.key === storageKey || (event.key === legacyKey && localStorage.getItem(storageKey) === null);
-    if (!watched || event.newValue === null || unreadable.raw !== null) return;
+    if (!watched) return;
     const fresh = load();
     for (const key of Object.keys(account)) if (!(key in fresh)) delete account[key as keyof Account];
     Object.assign(account, fresh);
     for (const listener of afterReload) listener();
   });
 }
+
+/**
+ * A tab still on the older version keeps writing the older key after this
+ * version has started saving under its own. Whatever it recorded since (passes,
+ * returns, Requests) is folded in here, by id, the way a kiosk's copies are:
+ * nothing only this version knows is ever replaced.
+ */
+function foldLegacy() {
+  let text: string | null = null;
+  try {
+    text = localStorage.getItem(legacyKey);
+  } catch {
+    return;
+  }
+  if (!text || localStorage.getItem(storageKey) === null) return;
+  const seen = fingerprint(text);
+  if (account.legacySeen === seen) return;
+  let older: Account | null = null;
+  try {
+    older = readAccount(text);
+  } catch {
+    // The older tab's copy can't be read; ours stands.
+  }
+  account.legacySeen = seen;
+  if (older) {
+    foldPasses(older.passes);
+    const known = new Set(account.requests.map((request) => request.id));
+    for (const request of older.requests) if (!known.has(request.id)) account.requests.push(request);
+  }
+  save();
+}
+
+if (typeof window !== 'undefined') queueMicrotask(foldLegacy);
 
 export function findClass(id: string | null | undefined) {
   return account.classes.find((cls) => cls.id === id);
@@ -892,6 +1057,7 @@ export function mergeStudents(keepId: string, dropId: string, pinFrom: string = 
       account.attendance = account.attendance.filter((each) => each !== mark);
     } else {
       mark.studentId = keepId;
+      mark.id = markId(mark.classId, mark.day, keepId);
       mark.updatedAt = moved;
       record.attendanceIds.push(mark.id);
     }
@@ -940,8 +1106,14 @@ export function undoMerge(recordId: string) {
   back(record.passIds, account.passes);
   back(record.requestIds, account.requests);
   back(record.deniedIds, account.deniedRequests);
-  back(record.attendanceIds, account.attendance);
+  for (const mark of account.attendance) {
+    if (!record.attendanceIds.includes(mark.id)) continue;
+    mark.studentId = record.drop.id;
+    mark.id = markId(mark.classId, mark.day, record.drop.id);
+    mark.updatedAt = now();
+  }
   account.attendance.push(...record.removedMarks);
+  account.claims.push(...record.removedClaims.filter((claim) => !account.claims.some((each) => each.token === claim.token)));
   if (account.mergedIds) {
     const { [record.drop.id]: _undone, ...rest } = account.mergedIds;
     account.mergedIds = rest;
@@ -1009,10 +1181,15 @@ export function isAbsent(classId: string, studentId: string) {
   return attendanceMark(classId, studentId)?.status === 'absent';
 }
 
+/** One mark per student, class and day, so its id is just those. Saved marks carry no id of their own. */
+function markId(classId: string, day: string, studentId: string) {
+  return `${classId}|${day}|${studentId}`;
+}
+
 function newMark(classId: string, studentId: string, day: string): AttendanceMark {
   const student = classStudent(classId, studentId);
   const mark: AttendanceMark = {
-    id: newId(),
+    id: markId(classId, day, studentId),
     classId,
     studentId,
     studentName: student ? displayName(student) : '',
@@ -1189,6 +1366,12 @@ export function keepAttendance() {
 
 /** Every pass the door starts or ends is recorded here, on the teacher's computer. */
 export function receivePasses(passes: Pass[]) {
+  foldPasses(passes);
+  save();
+}
+
+/** Takes in other copies of passes (a kiosk's, an older tab's), keeping everything the teacher changed here. */
+function foldPasses(passes: Pass[]) {
   const before = new Map(account.passes.map((pass) => [pass.id, $state.snapshot(pass) as Pass]));
   // A kiosk that hasn't heard about a merge still has the merged-away student.
   mergeInto(account.passes, passes.map((pass) => ({ ...pass, studentId: keptStudentId(pass.studentId) })));
@@ -1196,7 +1379,6 @@ export function receivePasses(passes: Pass[]) {
     const mine = before.get(pass.id);
     if (mine) keepTeacherEdits(pass, mine);
   }
-  save();
 }
 
 /**
@@ -1241,8 +1423,9 @@ export function receiveReturns(returns: OfflineReturn[]) {
   for (const back of returns) {
     const pass = account.passes.find((each) => each.id === back.passId);
     if (!pass || (pass.inAt && pass.inAt <= back.inAt)) continue;
-    // The teacher cancelled or corrected it here; that stands. The kiosk is still told it was received.
-    if (pass.cancelledBy || pass.corrected) continue;
+    // A cancel, or a return time the teacher set, stands; an open pass they corrected still takes the return.
+    // Either way the kiosk is told it was received.
+    if (pass.cancelledBy || (pass.corrected && pass.inAt)) continue;
     Object.assign(pass, { inAt: back.inAt, endedBy: 'student', updatedAt: now() });
   }
   save();
@@ -1635,5 +1818,5 @@ export function importAccount(text: string, own = true) {
     restored.claims = [];
   }
   unreadable.raw = null;
-  localStorage.setItem(storageKey, JSON.stringify(restored));
+  localStorage.setItem(storageKey, storedText(restored));
 }

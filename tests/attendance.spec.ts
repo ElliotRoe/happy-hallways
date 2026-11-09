@@ -70,7 +70,27 @@ async function setUp(page: Page, minutesAgo: number, attendance: { graceMinutes:
   );
 }
 
-const saved = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account.v2')!));
+
+/** Attendance is saved compactly (class → day → student → [status, arrived, tardy, flags, name]); spread back into marks. */
+type Log = Record<string, Record<string, Record<string, [string, number | null, number | null, number, string]>>>;
+function withMarks(account: { attendance?: object[]; attendanceLog?: Log }) {
+  const codes: Record<string, string> = { p: 'present', t: 'tardy', a: 'absent' };
+  const marks = Object.entries(account.attendanceLog ?? {}).flatMap(([classId, days]) =>
+    Object.entries(days).flatMap(([day, students]) =>
+      Object.entries(students).map(([studentId, [status, , tardy, flags]]) => ({
+        classId,
+        day,
+        studentId,
+        status: codes[status],
+        ...(typeof tardy === 'number' ? { tardyMinutes: tardy } : {}),
+        ...(flags & 4 ? { corrected: true } : {}),
+      })),
+    ),
+  );
+  return { ...account, attendance: [...(account.attendance ?? []), ...marks] };
+}
+
+const saved = async (page: Page) => withMarks(await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account.v2')!)));
 
 /** Opening the kiosk screen locks this computer as the kiosk; the teacher's PIN would unlock it. */
 async function unlockAndGo(page: Page, path: string) {

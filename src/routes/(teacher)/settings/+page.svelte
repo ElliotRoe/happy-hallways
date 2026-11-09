@@ -25,14 +25,16 @@
     input.value = '';
     if (!file) return;
     error = '';
+    own = null;
     pending = await file.text();
   }
 
-  /** Whether the backup is the teacher's own, from another computer, rather than a colleague's. */
-  let own = $state(true);
+  /** Whether the backup is the teacher's own, from another computer, or a colleague's. The teacher must say. */
+  let own = $state<boolean | null>(null);
 
   function replaceEverything() {
     try {
+      if (own === null) return;
       importAccount(pending, own);
       // Start fresh so the kiosk connection picks up the imported pairing.
       leaveTo('/');
@@ -129,7 +131,7 @@
       </fieldset>
       <div class="dialog-actions">
         <button class="btn" onclick={() => (pending = '')}>Cancel</button>
-        <button class="btn btn-danger solid" onclick={replaceEverything}>Replace everything</button>
+        <button class="btn btn-danger solid" onclick={replaceEverything} disabled={own === null}>Replace everything</button>
       </div>
     </div>
   </Modal>

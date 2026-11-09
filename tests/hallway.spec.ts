@@ -153,6 +153,8 @@ test('export and import put the teacher back where they were', async ({ page }) 
   await expect(page).toHaveURL(/\/welcome$/);
   await page.goto('/settings');
   await page.locator('input[type=file]').setInputFiles(file!);
+  await expect(page.getByRole('button', { name: 'Replace everything' })).toBeDisabled();
+  await page.getByRole('radio', { name: /My own/ }).check();
   await page.getByRole('button', { name: 'Replace everything' }).click();
   await expect(page.locator('.status-box')).toContainText('Period 2');
   await page.getByRole('link', { name: /^Period 2/ }).click();

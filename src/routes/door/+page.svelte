@@ -361,6 +361,12 @@
         </p>
       {:else}
         <h1>Make this device the kiosk</h1>
+        {#if door.unreadableSaved}
+          <p class="lede" role="alert">
+            This kiosk couldn't read what it had saved. A copy is kept for support. Pair it again to keep going; returns
+            already sent to the teacher's laptop are safe there.
+          </p>
+        {/if}
         {#if door.status === 'replaced'}
           <p class="lede">This device is no longer the kiosk. A different one was paired on the teacher's laptop.</p>
         {/if}
