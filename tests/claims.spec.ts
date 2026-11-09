@@ -107,7 +107,8 @@ test('each class is a new Room with a new code, and every Claim ends with its Ro
     await page.keyboard.press('Escape');
   });
   await page.goto('/student-link');
-  await expect(page.getByLabel('Class code 481516').first()).toBeVisible();
+  // The code itself is on Home and the kiosk; this page has the link to share.
+  await expect(page.getByRole('textbox', { name: 'Join link' })).toHaveValue(/481516/);
   await expect(page.getByRole('listitem').filter({ hasText: 'Sam L.' })).toBeVisible();
 
   await page.locator('.status-box').click();

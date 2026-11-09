@@ -22,11 +22,22 @@
   } = $props();
 
   let pressedOutside = false;
+
+  /**
+   * Moves the pop-up to the end of the page, so it sits above everything,
+   * wherever it was opened from (the sidebar is its own layer, so a pop-up
+   * opened there would otherwise sit under the page).
+   */
+  function toTop(node: HTMLElement) {
+    document.body.appendChild(node);
+    return { destroy: () => node.remove() };
+  }
 </script>
 
 <svelte:window onkeydown={(event) => event.key === 'Escape' && onClose()} />
 
 <div
+  use:toTop
   class={overlay}
   role="dialog"
   aria-modal="true"
