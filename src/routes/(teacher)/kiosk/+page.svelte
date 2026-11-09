@@ -85,7 +85,7 @@
         <input type="password" inputmode="numeric" autocomplete="off" bind:value={newPin} />
       </label>
       <p class="pin-note" role="note">
-        <Icon name="alert-triangle" size={16} />Please write this down so you don't forget it. It's hard to recover once you do.
+        <Icon name="alert-triangle" size={16} />Write it down. It's hard to recover.
       </p>
     </div>
     {#if pinError}<p class="form-error" role="alert">{pinError}</p>{/if}
@@ -254,29 +254,39 @@
 <style>
   .pin-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: flex-end;
     gap: 10px 16px;
   }
 
   .pin-row .field {
-    width: 200px;
+    flex: none;
+    width: 180px;
   }
 
-  /* Beside the box, level with it. */
+  /* Beside the box, level with it, in a box of its own. */
   .pin-note {
-    display: flex;
-    flex: 1 1 220px;
-    align-items: flex-start;
+    display: inline-flex;
+    align-items: center;
     gap: 8px;
-    margin: 0 0 4px;
+    margin: 0;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: var(--warn-wash);
     color: var(--warn);
     font-size: 13px;
     font-weight: 600;
+    white-space: nowrap;
   }
 
   .pin-note :global(.ui-icon) {
     flex: none;
-    margin-top: 1px;
+  }
+
+  /* A phone has no room beside the box. */
+  @media (max-width: 560px) {
+    .pin-row {
+      flex-wrap: wrap;
+    }
   }
 </style>

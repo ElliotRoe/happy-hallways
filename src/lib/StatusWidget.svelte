@@ -12,6 +12,7 @@
   import { clock } from './clock.svelte';
   import Icon from './Icon.svelte';
   import { kioskState } from './link.svelte';
+  import { studentLink } from './studentLink.svelte';
 
   /**
    * The status box at the top of the sidebar: the day at a glance, on every
@@ -24,6 +25,13 @@
     return currentSchedule() ? 'Off schedule' : 'No schedule';
   });
   const requests = $derived(waitingRequests().length);
+  const devices = $derived(
+    !account.studentLink?.open
+      ? 'Student devices off'
+      : studentLink.viewers
+        ? `${studentLink.setUp} set up · ${studentLink.viewers - studentLink.setUp} watching`
+        : 'Student devices on',
+  );
 </script>
 
 <a class="status-box {status}" href="/">
@@ -32,6 +40,7 @@
   </span>
   <strong class="class-name">{activeClassLabel()}</strong>
   <span class="row-line"><Icon name="kiosk" size={14} />{kiosk.text}</span>
+  <span class="row-line"><Icon name="smartphone" size={14} />{devices}</span>
   <span class="row-line"><Icon name="calendar" size={14} />{schedule}</span>
   {#if account.kiosk?.kind === 'device'}
     <span class="row-line requests" class:waiting={requests}>
