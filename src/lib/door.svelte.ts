@@ -830,6 +830,17 @@ export const leaveLine = (studentId: string) => act({ kind: 'leave', studentId }
 export const cancelRequest = (studentId: string) => act({ kind: 'cancel-request', studentId });
 export const clearLine = () => act({ kind: 'clear-line' });
 
+/**
+ * The teacher starting a pass from Home: for a student whose device is dead, or
+ * to let the next one in line go while someone is still out. The teacher's
+ * computer is in charge (docs/adr/0014), so it skips the checks the way
+ * approving a Request does. Never reachable from a kiosk or a student device.
+ */
+export function startPassFromHome(studentId: string, destination: string) {
+  if (!inCharge()) return;
+  startPass(studentId, destination, 'home');
+}
+
 export function askTeacher(studentId: string, destination: string) {
   if (canAsk()) act({ kind: 'ask', studentId, destination });
 }

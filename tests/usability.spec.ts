@@ -134,8 +134,9 @@ test('the teacher adds students to a line, takes one out, and clears it, from Ho
   await page.goto('/');
   const lineFor = page.locator('.stack', { hasText: 'In line for Bathroom 1' });
   for (const name of ['Ana B.', 'Max C.']) {
-    await page.getByLabel('Student to add to a line').selectOption({ label: name });
-    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page.getByLabel('Student', { exact: true }).selectOption({ label: name });
+    await page.getByLabel('Going to').selectOption('Bathroom 1');
+    await page.getByRole('button', { name: 'Add to line' }).click();
   }
   await expect(lineFor.locator('.line-list li')).toHaveCount(2);
   await expect(lineFor.locator('.line-list li').first()).toContainText('Ana B.');
@@ -145,6 +146,29 @@ test('the teacher adds students to a line, takes one out, and clears it, from Ho
 
   await lineFor.getByRole('button', { name: 'Clear' }).click();
   await expect(lineFor).toHaveCount(0);
+});
+
+test('the teacher starts a pass from Home, for a student with no device or the next one in line', async ({ page }) => {
+  await setUp(page);
+  await page.goto('/');
+  // A student whose computer is dead: the teacher sends them straight from Home.
+  await page.getByLabel('Student', { exact: true }).selectOption({ label: 'Ana B.' });
+  await page.getByLabel('Going to').selectOption('Bathroom 1');
+  await page.getByRole('button', { name: 'Start pass' }).click();
+  await expect(page.getByRole('row', { name: /Ana B\./ }).getByRole('button', { name: 'Mark back' })).toBeVisible();
+
+  // Bathroom 1 is now full and Max C. waits; Ana is taking too long, so the teacher lets Max go anyway.
+  await page.getByLabel('Student', { exact: true }).selectOption({ label: 'Max C.' });
+  await page.getByLabel('Going to').selectOption('Bathroom 1');
+  await page.getByRole('button', { name: 'Add to line' }).click();
+  await page.getByRole('button', { name: "Start Max C.'s pass now" }).click();
+  await expect(page.getByRole('row', { name: /Max C\./ }).getByRole('button', { name: 'Mark back' })).toBeVisible();
+  await expect(page.locator('.line-list')).toHaveCount(0);
+
+  await page.getByRole('link', { name: 'History', exact: true }).click();
+  const max = page.getByRole('row', { name: /Max C\./ });
+  await expect(max).toContainText('Skipped line');
+  await expect(max).toContainText('Approved');
 });
 
 test('a trip to a Private destination shows only as "Out" on the kiosk, but the teacher sees where', async ({ page }) => {

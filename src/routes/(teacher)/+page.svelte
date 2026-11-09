@@ -34,7 +34,7 @@
   import { page } from '$app/state';
   import { currentRoom, studentLink, studentLinkUrl } from '#lib/studentLink.svelte.ts';
   import RoomBoard from '#lib/RoomBoard.svelte';
-  import { activeDoorClass, isLimited, line, perform, setup } from '#lib/door.svelte.ts';
+  import { activeDoorClass, isLimited, line, perform, setup, startPassFromHome } from '#lib/door.svelte.ts';
   import RoomCode from '#lib/RoomCode.svelte';
   import { popOutRoom } from '#lib/popOut.ts';
   import { duration, hasRealDuration, isOverdue, now, time } from '#lib/passes.ts';
@@ -216,27 +216,42 @@
    * removing and clearing go through the same rules as the kiosk's taps.
    */
   const quiet = () => {};
-  let lineStudent = $state('');
-  let lineDestination = $state('');
-  const lineChoices = $derived.by(() => {
+  let sendStudent = $state('');
+  let sendDestination = $state('');
+  /** Anyone in the class who isn't out can be sent from here, wherever they're going. */
+  const sendChoices = $derived.by(() => {
     const cls = activeDoorClass();
-    const waitingIds = new Set(line().map((spot) => spot.studentId));
     const outIds = new Set(openPasses(cls?.id ?? undefined).map((pass) => pass.studentId));
+    const waitingIds = new Set(line().map((spot) => spot.studentId));
     return {
-      students: (cls?.students ?? []).filter((student) => !waitingIds.has(student.id) && !outIds.has(student.id) && !student.alwaysGo),
-      // Only destinations with a limit have a line.
-      destinations: (setup()?.destinations ?? []).filter((destination) => isLimited(destination.label)).map((destination) => destination.label),
+      students: (cls?.students ?? []).filter((student) => !outIds.has(student.id)),
+      destinations: (setup()?.destinations ?? []).map((destination) => destination.label),
+      waitingIds,
     };
   });
   $effect(() => {
-    if (!lineChoices.destinations.includes(lineDestination)) lineDestination = lineChoices.destinations[0] ?? '';
+    if (!sendChoices.destinations.includes(sendDestination)) sendDestination = sendChoices.destinations[0] ?? '';
+  });
+  /** Only a destination with a limit has a line, and an Always-Go student never waits in one. */
+  const canLineUp = $derived.by(() => {
+    const student = sendChoices.students.find((each) => each.id === sendStudent);
+    return (
+      !!account.lineEnabled && !!student && !student.alwaysGo && !sendChoices.waitingIds.has(student.id) && isLimited(sendDestination)
+    );
   });
 
-  function addToLine(event: SubmitEvent) {
+  /** The teacher lets a student go from here: no device needed, and no waiting for a spot (docs/adr/0014). */
+  function sendNow(event: SubmitEvent) {
     event.preventDefault();
-    if (!lineStudent || !lineDestination) return;
-    perform({ kind: 'join', studentId: lineStudent, destination: lineDestination }, quiet);
-    lineStudent = '';
+    if (!sendStudent || !sendDestination) return;
+    startPassFromHome(sendStudent, sendDestination);
+    sendStudent = '';
+  }
+
+  function addToLine() {
+    if (!canLineUp) return;
+    perform({ kind: 'join', studentId: sendStudent, destination: sendDestination }, quiet);
+    sendStudent = '';
   }
 
   function removeFromLine(studentId: string) {
@@ -355,6 +370,9 @@
                     <span class="line-position">{index + 1}</span>
                     <strong>{spot.studentName}</strong>
                     <span class="muted small">{each.destination ? '' : `for ${spot.destination}, `}since {time(spot.joinedAt)}</span>
+                    <button class="btn btn-small start-now" aria-label="Start {spot.studentName}'s pass now" onclick={() => startPassFromHome(spot.studentId, spot.destination)}>
+                      <Icon name="arrow-right" size={14} />Start pass
+                    </button>
                     <button class="btn btn-small btn-quiet remove" aria-label="Take {spot.studentName} out of the line" onclick={() => removeFromLine(spot.studentId)}>
                       <Icon name="x" size={14} />
                     </button>
@@ -363,17 +381,20 @@
               </ol>
             </div>
           {/each}
-          {#if account.lineEnabled && lineChoices.students.length && lineChoices.destinations.length}
-            <!-- The teacher's computer keeps the Line (docs/adr/0014), so the teacher can add someone here. -->
-            <form class="add-to-line" onsubmit={addToLine}>
-              <select aria-label="Student to add to a line" bind:value={lineStudent}>
-                <option value="" disabled>Add to a line…</option>
-                {#each lineChoices.students as student (student.id)}<option value={student.id}>{student.name}</option>{/each}
+          {#if sendChoices.students.length && sendChoices.destinations.length}
+            <!-- The teacher's computer keeps passes and the Line (docs/adr/0014), so the teacher can send someone or line them up here. -->
+            <form class="add-to-line" onsubmit={sendNow}>
+              <select aria-label="Student" bind:value={sendStudent}>
+                <option value="" disabled>Send a student…</option>
+                {#each sendChoices.students as student (student.id)}<option value={student.id}>{student.name}</option>{/each}
               </select>
-              <select aria-label="Line for" bind:value={lineDestination}>
-                {#each lineChoices.destinations as destination (destination)}<option value={destination}>{destination}</option>{/each}
+              <select aria-label="Going to" bind:value={sendDestination}>
+                {#each sendChoices.destinations as destination (destination)}<option value={destination}>{destination}</option>{/each}
               </select>
-              <button class="btn btn-small" disabled={!lineStudent}>Add</button>
+              <button class="btn btn-small" disabled={!sendStudent}>Start pass</button>
+              {#if account.lineEnabled}
+                <button type="button" class="btn btn-small btn-quiet" disabled={!canLineUp} onclick={addToLine}>Add to line</button>
+              {/if}
             </form>
           {/if}
         </section>
@@ -530,7 +551,7 @@
     justify-content: space-between;
   }
 
-  .line-list .remove {
+  .line-list .start-now {
     margin-left: auto;
   }
 
