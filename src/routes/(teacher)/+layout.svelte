@@ -2,7 +2,8 @@
   import { afterNavigate, goto } from '$app/navigation';
   import { page, updated } from '$app/state';
   import { onMount } from 'svelte';
-  import { account, dismissRosterMerge, keepAttendance, keepToSchedule, openPasses, waitingRequests } from '#lib/account.svelte.ts';
+  import { account, dismissRosterMerge, exportAccount, keepAttendance, keepToSchedule, openPasses, storage, waitingRequests } from '#lib/account.svelte.ts';
+  import { download } from '#lib/csv.ts';
   import { isPairedDevice, settleRequests } from '#lib/door.svelte.ts';
   import GettingStarted from '#lib/GettingStarted.svelte';
   import { askBeforeLeaving, leaveTo } from '#lib/leaving.ts';
@@ -123,6 +124,15 @@
   <!-- Messages for every page float in this corner, so the page never shifts. -->
   {#if ready}
     <div class="corner" class:with-drawer={account.classes.length > 0}>
+      <!-- The browser has no room left to save: nothing is lost while this page stays open, but a backup keeps it safe. -->
+      {#if storage.full}
+        <Toast icon="alert-triangle">
+          <div class="update">
+            <span>This browser is out of room to save Happy Hallways. Download a backup now so nothing is lost.</span>
+            <button class="btn btn-small btn-primary" onclick={() => download(`happy-hallways-${new Date().toISOString().slice(0, 10)}.json`, exportAccount(), 'application/json')}>Download backup</button>
+          </div>
+        </Toast>
+      {/if}
       {#if updated.current}
         <Toast icon="sparkles">
           <div class="update">

@@ -6,6 +6,8 @@
   import DestinationIcon from '#lib/DestinationIcon.svelte';
   import Icon from '#lib/Icon.svelte';
   import { createPeer, keepAlive, studentLinkPrefix } from '#lib/peer.ts';
+  import { yourTurnSound } from '#lib/sound.ts';
+  import { isUpNext, nextAlert, turnTitle } from '#lib/yourTurn.ts';
   import type { DoorNoticeMessage, LinkAction, OwnView, StudentLinkMessage, StudentMessage, StudentView } from '#lib/types.ts';
 
   /**
@@ -192,10 +194,33 @@
       : '',
   );
   const ordinal = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
+
+  // "It's your turn": once per turn, a sound and a buzz; while it lasts, the tab title flashes. Only on a set-up device.
+  const upNext = $derived(!!claimed && isUpNext(me));
+  let alerted = false;
+  $effect(() => {
+    const next = nextAlert(alerted, claimed ? me : null);
+    alerted = next.alerted;
+    if (!next.alert) return;
+    try {
+      yourTurnSound();
+    } catch {
+      // Sound not allowed here: the screen and the title still say so.
+    }
+    navigator.vibrate?.([200, 100, 200]);
+  });
+  let flashTick = $state(0);
+  $effect(() => {
+    if (!upNext) return;
+    flashTick = 0;
+    const timer = setInterval(() => flashTick++, 1000);
+    return () => clearInterval(timer);
+  });
+  const title = $derived(turnTitle(`${view?.className ? `${view.className} · ` : ''}Happy Hallways`, upNext, flashTick));
 </script>
 
 <svelte:head>
-  <title>{view?.className ? `${view.className} · ` : ''}Happy Hallways</title>
+  <title>{title}</title>
   <!-- Each class's link is private to its students, not for search results. -->
   <meta name="robots" content="noindex" />
 </svelte:head>
