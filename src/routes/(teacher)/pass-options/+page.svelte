@@ -190,7 +190,6 @@
   <section class="card">
     <div class="option-row">
       <div>
-        <p class="eyebrow">Sounds</p>
         <h2>Chime when a student is overdue</h2>
         <p class="muted small">A soft chime on this computer when a pass runs over its expected time. The kiosk never makes it.</p>
       </div>
