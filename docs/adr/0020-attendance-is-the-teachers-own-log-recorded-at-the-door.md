@@ -29,7 +29,15 @@ system.
   their own claimed device and the teacher on the laptop (in the spirit of ADR
   0003).
 - An Absent student is hidden from the door and cannot take a pass, join a
-  Line or Claim a device; a later Arrival makes them Tardy.
+  Line or Claim a device; a later Arrival makes them Tardy. So that a late
+  student can still arrive at the door, the kiosk offers "Just arrived?" while
+  anyone is Absent: the student types their first name, and their PIN when
+  PINs are on, and the teacher's computer finds them among today's Absent
+  students, the same way a device is set up in a Room (ADR 0018), with the same
+  wrong-try limits. No list of Absent students is ever shown. With PINs off, a
+  first name only counts if exactly one Absent student has it; otherwise, and
+  whenever the kiosk can't reach the teacher's computer, it says to ask the
+  teacher.
 - Changing a mark is a Correction (ADR 0006). The teacher can mark a Tardy as
   excused; there are no reasons, and no other behaviour is logged.
 - An Arrival is a fact, like a return, so a kiosk that has lost the teacher's

@@ -2,7 +2,10 @@ import type { DataConnection, Peer } from 'peerjs';
 import {
   account,
   answered,
+  classStudents,
   doorSetup,
+  findClass,
+  isAbsent,
   keepToSchedule,
   receivePasses,
   recordArrival,
@@ -15,6 +18,7 @@ import { connectionReport, watchConnection, type ConnectionWatch } from './diagn
 import { limitFor, lineOf } from './limits';
 import { dueTime, endUnseen, newId, now } from './passes';
 import { createPeer, keepAlive, pairingPrefix } from './peer';
+import { displayName } from './roster';
 import { formatClock, noPassAt } from './schedule';
 import type {
   Block,
@@ -405,6 +409,7 @@ export function perform(
     if (action.kind === 'undo') undo(action.passId);
     if (action.kind === 'change-class') setActiveClass({ id: action.classId, changedAt: now() });
     if (action.kind === 'arrive') tapIn(action.studentId);
+    if (action.kind === 'arrive-late') arriveLate(action.firstName, action.pin ?? '');
     if (action.kind === 'clear-line') setLine([]);
   } finally {
     reply = null;
@@ -438,6 +443,42 @@ function tapIn(studentId: string) {
   if (!cls || !student || !needsArrival(studentId)) return;
   recordArrival(cls.id, studentId);
   showNotice({ kind: 'returned', eyebrow: 'Arrived', title: `Welcome, ${student.name}`, message: 'Thanks for tapping in.' }, 4);
+}
+
+/** Wrong "Just arrived?" tries at the door in the last minute, and until when it's paused. Same limits as Room setup. */
+let lateTries: number[] = [];
+let latePausedUntil = 0;
+
+/**
+ * "Just arrived?": a student already marked Absent is hidden from the door, so
+ * they type their first name (and PIN, when PINs are on) instead of finding
+ * their name in a list. The match is made here, on the teacher's computer,
+ * against today's Absent students only; an Arrival then makes them Tardy. With
+ * PINs off, only one Absent student with that first name counts as a match.
+ * See docs/adr/0018 and 0020.
+ */
+function arriveLate(firstName: string, pin: string) {
+  const cls = findClass(account.activeClass?.id);
+  if (!cls?.attendance) return;
+  const askTeacher = (title: string, message: string) => showNotice({ kind: 'denied', eyebrow: 'Just arrived', title, message }, 10);
+  const now = Date.now();
+  if (now < latePausedUntil) return askTeacher('Ask your teacher', 'Too many tries. Your teacher can mark you here.');
+  const typed = firstName.trim().toLowerCase();
+  const absent = classStudents(cls).filter(
+    (student) => student.status === 'current' && isAbsent(cls.id, student.id) && student.firstName.toLowerCase() === typed,
+  );
+  const match = account.studentPins ? absent.filter((student) => !!student.pin && student.pin === pin) : absent;
+  if (match.length !== 1) {
+    if (account.studentPins) {
+      lateTries = [...lateTries.filter((at) => now - at < 60_000), now];
+      if (lateTries.length >= 5) latePausedUntil = now + 60_000;
+      return askTeacher("That didn't match", 'Check your first name and PIN, or ask your teacher.');
+    }
+    return askTeacher('Ask your teacher', 'Your teacher can mark you here.');
+  }
+  lateTries = [];
+  recordArrival(cls.id, match[0].id);
+  showNotice({ kind: 'returned', eyebrow: 'Arrived', title: `Welcome, ${displayName(match[0])}`, message: 'Thanks for tapping in.' }, 4);
 }
 
 /**
@@ -690,6 +731,10 @@ function act(action: DoorAction) {
   }
   if (action.kind === 'back') signBackInOffline(action.studentId);
   else if (action.kind === 'arrive') arriveOffline(action.studentId);
+  // Finding a late student needs the teacher's computer, so don't guess.
+  else if (action.kind === 'arrive-late') {
+    showNotice({ kind: 'denied', eyebrow: 'Just arrived', title: 'Ask your teacher', message: 'Your teacher can mark you here.' }, 8);
+  }
   else showNotice(waitingNotice(), 6);
 }
 
@@ -707,6 +752,18 @@ export const requestPass = (studentId: string, destination: string, approvedBy?:
   act({ kind: 'pass', studentId, destination, approvedBy });
 export const signBackIn = (studentId: string) => act({ kind: 'back', studentId });
 export const tapToArrive = (studentId: string) => act({ kind: 'arrive', studentId });
+export const arriveLateAs = (firstName: string, pin?: string) => act({ kind: 'arrive-late', firstName, pin });
+
+/** How many students are Absent from the class on the door today, so the door can offer "Just arrived?" (never who). */
+export function absentCount() {
+  const arrivals = setup()?.arrivals;
+  return arrivals && arrivals.classId === activeClassId() ? (arrivals.absentCount ?? 0) : 0;
+}
+
+/** Whether a late arrival has to type a PIN. */
+export function lateArrivalNeedsPin() {
+  return !!setup()?.arrivals?.pinsOn;
+}
 export const joinLine = (studentId: string, destination: string) => act({ kind: 'join', studentId, destination });
 export const leaveLine = (studentId: string) => act({ kind: 'leave', studentId });
 export const cancelRequest = (studentId: string) => act({ kind: 'cancel-request', studentId });

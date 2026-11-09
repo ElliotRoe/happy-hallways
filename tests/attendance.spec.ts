@@ -2,7 +2,11 @@ import { expect, test, type Page } from '@playwright/test';
 
 /** Attendance (docs/adr/0020): the teacher's own log, recorded at the door. */
 
+/** Midday today: periods here start minutes before "now", which mustn't cross midnight, so the page's clock is pinned. */
+const middayToday = () => new Date(new Date().setHours(12, 0, 0, 0));
+
 test.beforeEach(async ({ page }) => {
+  await page.clock.install({ time: middayToday() });
   await page.addLocatorHandler(page.locator('.tip'), async (tip) => {
     await tip.getByRole('button', { name: /Skip|Got it/ }).click();
   });
@@ -16,8 +20,8 @@ const clock = (date: Date) => `${String(date.getHours()).padStart(2, '0')}:${Str
 /** A teacher whose Period 1 began `minutesAgo` minutes ago on the schedule, taking Attendance, on this computer's kiosk. */
 async function setUp(page: Page, minutesAgo: number, attendance: { graceMinutes: number; absentAfterMinutes: number }, extra: object = {}) {
   await page.goto('/');
-  const start = new Date(Date.now() - minutesAgo * 60_000);
-  const end = new Date(Date.now() + 40 * 60_000);
+  const start = new Date(middayToday().getTime() - minutesAgo * 60_000);
+  const end = new Date(middayToday().getTime() + 40 * 60_000);
   await page.evaluate(
     ({ start, end, startAt, attendance, extra }) => {
       localStorage.setItem(
@@ -169,4 +173,87 @@ test("a kiosk that can't reach the teacher's computer still records an Arrival, 
   await expect(page.getByText(/1 tap saved here/)).toBeVisible();
   const device = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.door')!));
   expect(device.arrivals).toEqual([{ classId: 'p1', studentId: 'maya', at: expect.any(String) }]);
+});
+
+/** Period 1 began 20 minutes ago and marks no-shows Absent after 15, so everyone here is Absent when the door opens. */
+async function everyoneAbsent(page: Page, roster: { id: string; firstName: string; lastName: string; pin?: string }[], studentPins: boolean) {
+  const at = new Date(middayToday().getTime() - 20 * 60_000).toISOString();
+  await setUp(page, 20, { graceMinutes: 0, absentAfterMinutes: 15 }, {
+    studentPins,
+    roster,
+    classes: [
+      {
+        id: 'p1',
+        name: 'Period 1',
+        createdAt: at,
+        attendance: { graceMinutes: 0, absentAfterMinutes: 15 },
+        members: roster.map((student) => ({ studentId: student.id, lastPrefix: student.lastName.slice(0, 1), status: 'current' })),
+      },
+    ],
+  });
+  await page.goto('/door');
+  await expect(page.getByRole('button', { name: 'Just arrived?' })).toBeVisible({ timeout: 20_000 });
+}
+
+async function justArrived(page: Page, firstName: string, pin?: string) {
+  await page.getByRole('button', { name: 'Just arrived?' }).click();
+  await page.getByLabel('Your first name').fill(firstName);
+  if (pin) await page.getByLabel('Your PIN').fill(pin);
+  await page.getByRole('button', { name: "I'm here" }).click();
+}
+
+test('an Absent student arrives late at the kiosk by first name and PIN, without the kiosk listing who is Absent', async ({ page }) => {
+  await everyoneAbsent(
+    page,
+    [
+      { id: 'maya', firstName: 'Maya', lastName: 'Chen', pin: '2222' },
+      { id: 'jordan', firstName: 'Jordan', lastName: 'Ellis', pin: '1357' },
+    ],
+    true,
+  );
+  // Nobody Absent is named on the door.
+  await expect(page.locator('.door')).not.toContainText('Maya');
+  await expect(page.locator('.door')).not.toContainText('Jordan');
+
+  await justArrived(page, 'jordan', '9999');
+  await expect(page.getByText("That didn't match")).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  await justArrived(page, 'Jordan', '1357');
+  await expect(page.getByText('Welcome, Jordan E.')).toBeVisible();
+  await expect(page.locator('.door')).not.toContainText(/tardy/i);
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByRole('button', { name: /Jordan E\./ })).toContainText('In class');
+  await expect(page.locator('.door')).not.toContainText('Maya');
+  const mark = (await saved(page)).attendance.find((each: { studentId: string }) => each.studentId === 'jordan');
+  expect(mark.status).toBe('tardy');
+});
+
+test('with PINs off, a first name only one Absent student has is enough to arrive late', async ({ page }) => {
+  await everyoneAbsent(
+    page,
+    [
+      { id: 'maya', firstName: 'Maya', lastName: 'Chen' },
+      { id: 'jordan', firstName: 'Jordan', lastName: 'Ellis' },
+    ],
+    false,
+  );
+  await expect(page.getByLabel('Your PIN')).toHaveCount(0);
+  await justArrived(page, 'maya');
+  await expect(page.getByText('Welcome, Maya C.')).toBeVisible();
+});
+
+test('with PINs off, a first name two Absent students share sends them to the teacher', async ({ page }) => {
+  await everyoneAbsent(
+    page,
+    [
+      { id: 'sam-lee', firstName: 'Sam', lastName: 'Lee' },
+      { id: 'sam-park', firstName: 'Sam', lastName: 'Park' },
+    ],
+    false,
+  );
+  await justArrived(page, 'Sam');
+  await expect(page.getByText('Ask your teacher')).toBeVisible();
+  const marks = (await saved(page)).attendance;
+  expect(marks.every((mark: { status: string }) => mark.status === 'absent')).toBe(true);
 });

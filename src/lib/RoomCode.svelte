@@ -29,9 +29,14 @@
 
   .qr-box {
     flex: none;
+  }
+
+  /* The shared QR style is a fixed 180px square for pairing; here it fills its box at each size. */
+  .qr-box :global(.qr) {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
     padding: 6px;
-    border-radius: 8px;
-    background: #fff;
   }
 
   .words {
@@ -70,7 +75,10 @@
 
   .large .qr-box {
     width: min(60vw, 340px);
-    padding: 12px;
+  }
+
+  .large .qr-box :global(.qr) {
+    padding: 14px;
   }
 
   .large .label {

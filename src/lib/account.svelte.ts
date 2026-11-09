@@ -1213,7 +1213,13 @@ export function endAllClaims() {
 function arrivalsOnTheDoor() {
   const cls = findClass(account.activeClass?.id);
   if (!cls?.attendance) return null;
-  return { classId: cls.id, studentIds: attendanceToday(cls.id).filter((mark) => mark.arrivedAt).map((mark) => mark.studentId) };
+  const marks = attendanceToday(cls.id);
+  return {
+    classId: cls.id,
+    studentIds: marks.filter((mark) => mark.arrivedAt).map((mark) => mark.studentId),
+    absentCount: marks.filter((mark) => mark.status === 'absent').length,
+    pinsOn: !!account.studentPins,
+  };
 }
 
 /** What the kiosk shows: the door as this computer decides it. */

@@ -4,8 +4,10 @@
   import { onMount } from 'svelte';
   import { keepAttendance, setDoorLocked } from '#lib/account.svelte.ts';
   import {
+    absentCount,
     activeDoorClass,
     allowanceFor,
+    arriveLateAs,
     askTeacher,
     canAsk,
     cancelRequest,
@@ -25,6 +27,7 @@
     joinLine,
     leaveLine,
     line,
+    lateArrivalNeedsPin,
     lineSpotFor,
     needsArrival,
     needsPin,
@@ -175,6 +178,19 @@
 
   /** A student who tapped their name in a class that asks for PINs, typing theirs. */
   let pinFor = $state(null as { id: string; name: string } | null);
+
+  /**
+   * "Just arrived?": a student already marked Absent isn't on the door, so they
+   * type their first name (and PIN) instead. The kiosk never lists who is
+   * Absent. See docs/adr/0020.
+   */
+  let lateArrival = $state<{ firstName: string; pin: string } | null>(null);
+  function sendLateArrival(event: SubmitEvent) {
+    event.preventDefault();
+    if (!lateArrival?.firstName.trim()) return;
+    arriveLateAs(lateArrival.firstName.trim(), lateArrivalNeedsPin() ? lateArrival.pin : undefined);
+    lateArrival = null;
+  }
 
   function tap(student: { id: string; name: string }) {
     if (needsPin(student.id)) pinFor = student;
@@ -430,6 +446,9 @@
       </main>
       <p class="count">
         {outCount(cls.id)} out{waiting.length ? ` · ${waiting.length} in line` : ''}
+        {#if absentCount()}
+          <button class="door-btn just-arrived" onclick={() => (lateArrival = { firstName: '', pin: '' })}>Just arrived?</button>
+        {/if}
       </p>
     {:else if following}
       <main class="pairing">
@@ -591,6 +610,26 @@
         {/if}
       </div>
     </div>
+  {/if}
+
+  {#if lateArrival}
+    <Modal overlay="overlay" label="Just arrived" onClose={() => (lateArrival = null)}>
+      <div class="sheet">
+        <h2>Just arrived?</h2>
+        <p class="lede small">Type your first name{lateArrivalNeedsPin() ? ' and your PIN' : ''}.</p>
+        <form class="late-form" onsubmit={sendLateArrival}>
+          <input aria-label="Your first name" autocomplete="off" bind:value={lateArrival.firstName} {@attach focusOnShow} />
+          {#if lateArrivalNeedsPin()}
+            <input class="code-input" type="password" inputmode="numeric" autocomplete="off" aria-label="Your PIN" maxlength="6" bind:value={lateArrival.pin} />
+          {/if}
+          <button
+            class="door-btn primary"
+            disabled={!lateArrival.firstName.trim() || (lateArrivalNeedsPin() && !/^\d{3,6}$/.test(lateArrival.pin))}>I'm here</button
+          >
+        </form>
+        <button class="quiet-link" onclick={() => (lateArrival = null)}>Cancel</button>
+      </div>
+    </Modal>
   {/if}
 
   {#if teacher !== 'closed'}
@@ -830,6 +869,20 @@
 
   .denied-status {
     color: var(--door-out);
+  }
+
+  .just-arrived {
+    margin-left: 12px;
+  }
+
+  .late-form {
+    display: grid;
+    gap: 10px;
+  }
+
+  .late-form input:not(.code-input) {
+    padding: 12px;
+    font-size: 22px;
   }
 
   .arrive-status {

@@ -378,8 +378,11 @@ export type DoorSetup = {
   denied?: { studentId: string; secondsAgo: number }[];
   /** The Room's code, for the kiosk to show, while the Student link is open. */
   room?: { code: string } | null;
-  /** For the class on the door, when it takes Attendance: who has arrived today. Absent students are left off `classes`. */
-  arrivals?: { classId: string; studentIds: string[] } | null;
+  /**
+   * For the class on the door, when it takes Attendance: who has arrived today, how many are Absent (never
+   * who: Absent students are left off `classes`), and whether a late arrival must type a PIN.
+   */
+  arrivals?: { classId: string; studentIds: string[]; absentCount?: number; pinsOn?: boolean } | null;
 };
 
 /**
@@ -396,6 +399,8 @@ export type DoorAction =
   | { kind: 'undo'; passId: string }
   | { kind: 'change-class'; classId: string | null }
   | { kind: 'arrive'; studentId: string }
+  /** "Just arrived?": a student marked Absent types their first name (and PIN); the teacher's computer finds them. */
+  | { kind: 'arrive-late'; firstName: string; pin?: string }
   | { kind: 'clear-line' };
 
 /** A student who signed back in while the kiosk couldn't reach the teacher's computer. */

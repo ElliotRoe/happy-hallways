@@ -293,6 +293,8 @@ A student who did not come to a class that day. A student with no Arrival
 becomes Absent once the teacher's set minutes have passed or the period ends,
 but only in a class that became the Active Class that day.
 An Absent student is hidden from the door; a later Arrival makes them Tardy.
+At the kiosk, "Just arrived?" lets them arrive by typing their first name (and
+PIN), without ever listing who is Absent.
 "Gone for the day" makes a student Absent in the teacher's remaining classes
 that day.
 _Avoid_: Missing, away, out (that is a student on a pass)
