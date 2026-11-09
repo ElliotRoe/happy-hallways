@@ -4,6 +4,7 @@
   import { account, markPopupsSeen } from './account.svelte';
   import Modal from './Modal.svelte';
   import { news, popupNamed, unseenNews, type News } from './popups';
+  import NewsThumb from './NewsThumb.svelte';
   import UpdateArt from './UpdateArt.svelte';
   import { supportEmail, supportMailto } from './support';
 
@@ -98,7 +99,7 @@
           {#if update.thanks && !lead}<p class="thanks">{update.thanks}</p>{/if}
           <ol class="changes">
             {#each update.items as item (item.title)}
-              <li class:compact={!item.art}>
+              <li class:compact={!item.art && !item.thumb} class:with-thumb={!!item.thumb}>
                 <div>
                   <h3>{item.title}</h3>
                   <p class="muted">
@@ -106,7 +107,7 @@
                     {#if item.link}<a class="go" href={item.link.href} onclick={closeNews}>{item.link.label} →</a>{/if}
                   </p>
                 </div>
-                {#if item.art}<UpdateArt art={item.art} />{/if}
+                {#if item.art}<UpdateArt art={item.art} />{:else if item.thumb}<NewsThumb thumb={item.thumb} label={item.title} />{/if}
               </li>
             {/each}
           </ol>
@@ -130,6 +131,7 @@
           {@const action = shownNews[0].action}
           <button class="btn" onclick={() => act(action.href)}>{action.label}</button>
         {/if}
+        <a class="see-all" href="/settings/changes" onclick={closeNews}>See everything that changed</a>
         <button class="btn btn-primary" onclick={closeNews}>Got it</button>
       </div>
     </div>
@@ -220,5 +222,19 @@
     background: var(--surface-sunk);
     color: var(--muted);
     font-size: 14px;
+  }
+
+  /* A small picture to the right of a short item. */
+  .changes li.with-thumb {
+    grid-template-columns: 1fr 120px;
+    gap: 20px;
+    padding-top: 12px;
+  }
+
+  .see-all {
+    align-self: center;
+    margin-right: auto;
+    color: var(--muted);
+    font-size: 13px;
   }
 </style>

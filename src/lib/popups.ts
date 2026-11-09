@@ -9,6 +9,9 @@
 
 export type PopupArt = 'destination-limits' | 'check-destinations' | 'schedule' | 'no-pass-rules' | 'home' | 'requests';
 
+/** A small picture beside one item, from news-art/. */
+export type NewsThumb = 'own-device' | 'attendance' | 'visibility' | 'history-fix';
+
 export type News = {
   id: string;
   /** Heads this news when it's shown along with older news the teacher hasn't seen. */
@@ -17,7 +20,9 @@ export type News = {
    * Each change. One with a drawing gets a big row beside it; one without is a
    * short row in a compact list, with a link to where to find it.
    */
-  items: { title: string; text: string; art?: PopupArt; link?: { label: string; href: string } }[];
+  items: { title: string; text: string; art?: PopupArt; thumb?: NewsThumb; link?: { label: string; href: string } }[];
+  /** More of this change, listed only on the What's changed page, so the popup stays short. */
+  more?: { title: string; text: string }[];
   /** A short thank-you, leading the news above its list. */
   thanks?: string;
   /** Smaller changes, in one short line under the list. */
@@ -108,51 +113,52 @@ export const news: News[] = [
   {
     id: '2026-11-whats-new',
     title: "What's new in Happy Hallways",
-    thanks:
-      'Thank you. From all of us at teacher.dev: thank you for every email, comment and idea, and for your patience while we built. Almost everything below came straight from your requests.',
+    thanks: 'Thank you for every email, comment and idea. Almost everything here came straight from your requests.',
     items: [
+      {
+        title: 'Students can take a pass from their own device',
+        text: 'Each class gets a code on the kiosk and on Home. Students join on a Chromebook or phone with their first name and PIN.',
+        thumb: 'own-device',
+      },
+      {
+        title: 'Attendance, if you want it',
+        text: 'Turn it on in Pass Options. Students tap in when they arrive; late is tardy, never arriving is absent.',
+        thumb: 'attendance',
+      },
+      {
+        title: 'Choose what students can see',
+        text: 'Make a destination like the Nurse private, or hide names, places or the line in a class’s Settings tab.',
+        thumb: 'visibility',
+      },
+      {
+        title: 'Fix mistakes in History',
+        text: 'Cancel an accidental pass and give it back, or add a note to any pass.',
+        thumb: 'history-fix',
+      },
+    ],
+    more: [
       {
         title: 'Keep this computer open during class',
         text: "Your computer now decides who can go, for the kiosk and for students' own devices. Keep Happy Hallways open and awake while you teach. If it closes, passes pause until it's back, though students coming back are still recorded.",
       },
       {
-        title: 'Students can take a pass from their own device',
-        text: 'Each class gets its own code, shown on the kiosk and on Home. Students join on a Chromebook or phone, type their first name and PIN, and can take a pass, come back or join the line. A kiosk is now optional.',
-        link: { label: 'Student devices', href: '/student-link' },
-      },
-      {
-        title: 'Your old Student link now uses class codes',
-        text: 'The code changes every class period. If you posted the old link in Google Classroom, students who open it will be asked for the code.',
+        title: 'Class codes replace the old Student link',
+        text: 'The code changes every class period. If you posted the old link in Google Classroom, students who open it are asked for the code.',
       },
       {
         title: 'One roster for all your classes',
-        text: "A student in two of your classes is now one student, so their passes, PIN and pass allowance follow them. Check the Roster to merge anyone we couldn't match. Paste your class lists again to add full names; only you ever see them.",
-        link: { label: 'Roster', href: '/roster' },
-      },
-      {
-        title: 'Attendance, if you want it',
-        text: "Turn it on in Pass Options. Students tap in when they arrive, late arrivals are marked tardy, and anyone who never arrives is marked absent. It's your own record, not official attendance.",
-        link: { label: 'Pass Options', href: '/pass-options' },
+        text: "A student in two of your classes is now one student, so their passes, PIN and pass allowance follow them. Check the Roster to merge anyone we couldn't match, and paste your class lists again to add full names; only you ever see them.",
       },
       {
         title: 'Everything that needs you, in one place',
-        text: 'Requests and overdue students now sit in the Needs you panel in the corner of every page. From Home you can also add a student to a line, take one out, or clear it.',
+        text: 'Requests and overdue students sit in the Needs you panel in the corner of every page. From Home you can add a student to a line, take one out, or clear it.',
       },
       {
-        title: 'Choose what students can see',
-        text: "Mark a destination like the Nurse as private, and other students see only “Out”. Each class's Settings tab can also hide where students went, who's in line, or names on students' devices.",
-        link: { label: 'Destinations', href: '/destinations' },
-      },
-      {
-        title: 'Fix mistakes in History',
-        text: 'Cancel an accidental pass and give it back, or add a note to any pass.',
-        link: { label: 'History', href: '/history' },
+        title: 'Smaller changes',
+        text: "Kiosk names are in A to Z order and the kiosk stays awake. A sound plays when it's a student's turn, and you can turn on a chime for overdue passes in Pass Options. Drag destinations to reorder them. Each class has Students, PINs and Settings tabs, and History and Settings are under More in the sidebar. We now say “take a pass” and “come back”.",
       },
     ],
-    also:
-      "Kiosk names are in A to Z order and the kiosk stays awake. A sound plays when it's a student's turn, and you can turn on a chime for overdue passes in Pass Options. Drag destinations to reorder them. Each class now has Students, PINs and Settings tabs, and History and Settings are under More in the sidebar. We now say “take a pass” and “come back”.",
-    action: { label: 'Go to Home', href: '/' },
-    note: "Something not working the way you expect since this update? Email us at support@teacher.dev. We read every message, and we're here to make your days easier.",
+    note: 'Something not working since this update? Email us at support@teacher.dev. We read every message.',
   },
 ];
 

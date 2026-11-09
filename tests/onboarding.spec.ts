@@ -40,20 +40,24 @@ test("a returning teacher sees today's update once; a brand-new one never does",
 
   // Only today's update: a thank-you first, links to each place, and a note with the support email at the end.
   const dialog = page.getByRole('dialog', { name: "What's new in Happy Hallways" });
-  await expect(dialog).toContainText('From all of us at teacher.dev: thank you');
-  for (const title of ['Keep this computer open during class', 'One roster for all your classes', 'Fix mistakes in History']) {
+  await expect(dialog).toContainText('Thank you for every email, comment and idea');
+  for (const title of ['Students can take a pass from their own device', 'Attendance, if you want it', 'Choose what students can see', 'Fix mistakes in History']) {
     await expect(dialog.getByRole('heading', { name: title })).toBeVisible();
   }
-  await expect(dialog.getByRole('heading', { name: 'Can always go' })).toBeHidden();
+  // Short: the rest is on the What's changed page.
+  await expect(dialog.getByRole('heading')).toHaveCount(5);
+  await expect(dialog.getByRole('heading', { name: 'One roster for all your classes' })).toBeHidden();
   await expect(dialog.getByRole('link', { name: 'support@teacher.dev' })).toHaveAttribute('href', /^mailto:support@teacher\.dev/);
 
-  // A link goes there and counts as seen.
-  await dialog.getByRole('link', { name: 'Pass Options →' }).click();
-  await expect(page).toHaveURL(/\/pass-options$/);
+  // "See everything that changed" opens the full list, and counts as seen.
+  await dialog.getByRole('link', { name: 'See everything that changed' }).click();
+  await expect(page).toHaveURL(/\/settings\/changes$/);
+  await expect(page.getByText('One roster for all your classes', { exact: true })).toBeVisible();
+  await expect(page.getByText('One limit for the whole class', { exact: true })).toBeVisible();
   await expect(update).toBeHidden();
   await page.reload();
   await page.waitForTimeout(1000);
-  await expect(update).toBeHidden();
+  await expect(dialog).toBeHidden();
 
   // Never on the kiosk.
   await page.evaluate(() => {
@@ -71,7 +75,7 @@ test("a returning teacher sees today's update once; a brand-new one never does",
   await expect(page.getByRole('heading', { name: 'Thank you for all your feedback' })).toBeHidden();
   await page.reload();
   await page.waitForTimeout(1000);
-  await expect(update).toBeHidden();
+  await expect(dialog).toBeHidden();
 });
 
 test('/?whats-new previews the newest update without counting it as seen', async ({ page }) => {
