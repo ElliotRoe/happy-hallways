@@ -4,7 +4,6 @@
     account,
     activeClassLabel,
     createClass,
-    endNoPassTime,
     findClass,
     findSchedule,
     liveSchedule,
@@ -18,12 +17,10 @@
     passStatusText,
     setActiveClass,
     setDoorLocked,
-    startNoPassTime,
     stopFollowingSchedule,
     useSchedule,
     useThisComputer,
     useWarning,
-    waitingRequests,
   } from '#lib/account.svelte.ts';
   import { clock } from '#lib/clock.svelte.ts';
   import ConfirmDialog from '#lib/ConfirmDialog.svelte';
@@ -31,7 +28,6 @@
   import Icon from '#lib/Icon.svelte';
   import MenuSelect from '#lib/MenuSelect.svelte';
   import { cancelPairing, kioskOnline, kioskState, refreshLink } from '#lib/link.svelte.ts';
-  import { answerRequest } from '#lib/door.svelte.ts';
   import PairingDialog from '#lib/PairingDialog.svelte';
   import PassMarks from '#lib/PassMarks.svelte';
   import QuietScene, { seasons, type Season } from '#lib/QuietScene.svelte';
@@ -42,7 +38,6 @@
   import { popOutRoom } from '#lib/popOut.ts';
   import { duration, hasRealDuration, isOverdue, now, time } from '#lib/passes.ts';
   import { nextClassPeriod, periodAt, toMinutes } from '#lib/schedule.ts';
-  import type { Block, PassRequest } from '#lib/types.ts';
 
   /**
    * Home: the one page a teacher keeps open all day. The day and whether
@@ -81,7 +76,6 @@
     return period ? `Ends in ${until(period.end)}` : '';
   });
 
-  const requests = $derived(waitingRequests());
   const out = $derived(classId ? openPasses(classId).sort((a, b) => a.outAt.localeCompare(b.outAt)) : []);
   const waiting = $derived(account.line.filter((spot) => spot.classId === classId));
   /** Each destination has its own line; under a Class Limit there is one Class Line, named by no destination. */
@@ -212,17 +206,6 @@
     goto('/door');
   }
 
-  const blockText: Record<Block, (request: PassRequest) => string> = {
-    allowance: () => 'Out of passes',
-    'no-pass': () => 'No-pass time',
-    full: (request) => (account.limitMode === 'class' ? 'Class limit reached' : `${request.destination} is full`),
-  };
-
-  function ago(when: string) {
-    const minutes = Math.floor((at - new Date(when).getTime()) / 60_000);
-    return minutes < 1 ? 'just now' : `${minutes} min ago`;
-  }
-
   const today = $derived(
     new Intl.DateTimeFormat([], { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(at)),
   );
@@ -350,120 +333,77 @@
     </div>
 
     <div class="side">
-    {#if account.manualNoPass}
-      <button class="btn btn-primary" onclick={endNoPassTime}><Icon name="check" size={16} />Open passes</button>
-    {:else}
-      <button class="btn" onclick={startNoPassTime} title="Stop students starting passes until you open them again">
-        <Icon name="ban" size={16} />No passes now
-      </button>
-    {/if}
+    <!-- Requests and No passes live in the drawer in the bottom-right corner, on every page. -->
+    <section class="devices-card" aria-labelledby="devices-title">
+      <h2 id="devices-title" class="devices-title">Devices</h2>
 
-    <section class="kiosk-card" aria-labelledby="kiosk-title">
-      <div class="panel-head">
-        <h2 id="kiosk-title"><Icon name="tablet" size={18} />Kiosk</h2>
-        <span class="kiosk-state"><span class="status-dot {kiosk.dot}" aria-hidden="true"></span>{kiosk.text.replace(/^Kiosk (\w)/, (_, first) => first.toUpperCase())}</span>
-      </div>
-      {#if !account.kiosk}
-        <p class="muted small">Students sign out on a tablet or Chromebook by the door, or on this computer.</p>
-        {#if account.pin}
+      <div class="device" aria-labelledby="kiosk-title">
+        <div class="panel-head">
+          <h3 id="kiosk-title"><Icon name="kiosk" size={18} />Kiosk</h3>
+          <span class="kiosk-state"><span class="status-dot {kiosk.dot}" aria-hidden="true"></span>{kiosk.text.replace(/^Kiosk (\w)/, (_, first) => first.toUpperCase())}</span>
+        </div>
+        {#if !account.kiosk}
+          <p class="muted small">Students sign out on a tablet or Chromebook by the door, or on this computer.</p>
+          {#if account.pin}
+            <div class="kiosk-actions">
+              <button class="btn btn-small btn-primary" onclick={() => (pairing = true)}>Pair a device</button>
+              <button class="btn btn-small" onclick={thisComputer}>Use this computer</button>
+            </div>
+          {:else}
+            <a class="btn btn-small btn-primary" href="/kiosk">Set up the kiosk</a>
+          {/if}
+        {:else if account.kiosk.kind === 'this-computer'}
           <div class="kiosk-actions">
-            <button class="btn btn-small btn-primary" onclick={() => (pairing = true)}>Pair a device</button>
-            <button class="btn btn-small" onclick={thisComputer}>Use this computer</button>
+            <button class="btn btn-small btn-primary" onclick={openDoor} disabled={!account.activeClass}>
+              <Icon name="lock" size={14} />Open kiosk screen
+            </button>
+            <button class="btn btn-small" onclick={() => (pairing = true)}>Pair a device instead</button>
+            <button class="btn btn-small btn-quiet" onclick={disconnect}>Stop using it</button>
+          </div>
+        {:else if kioskOnline()}
+          <div class="kiosk-actions">
+            <button class="btn btn-small btn-quiet" onclick={disconnect}>Disconnect</button>
           </div>
         {:else}
-          <a class="btn btn-small btn-primary" href="/kiosk">Set up the kiosk</a>
-        {/if}
-      {:else if account.kiosk.kind === 'this-computer'}
-        <div class="kiosk-actions">
-          <button class="btn btn-small btn-primary" onclick={openDoor} disabled={!account.activeClass}>
-            <Icon name="lock" size={14} />Open kiosk screen
-          </button>
-          <button class="btn btn-small" onclick={() => (pairing = true)}>Pair a device instead</button>
-          <button class="btn btn-small btn-quiet" onclick={disconnect}>Stop using it</button>
-        </div>
-      {:else if kioskOnline()}
-        <div class="kiosk-actions">
-          <button class="btn btn-small btn-quiet" onclick={disconnect}>Disconnect</button>
-        </div>
-      {:else}
-        <p class="muted small">
-          {account.kiosk.lastSeenAt ? `Last connected at ${time(account.kiosk.lastSeenAt)}. ` : ''}It keeps letting students
-          sign out, and saves their passes until it's back.
-        </p>
-        <div class="kiosk-actions">
-          <button
-            class="btn btn-small btn-primary"
-            onclick={() => {
-              reconnecting = true;
-              pairing = true;
-            }}>Reconnect</button
-          >
-          <button class="btn btn-small btn-quiet" onclick={disconnect}>Disconnect</button>
-        </div>
-      {/if}
-    </section>
-
-    <section class="kiosk-card" aria-labelledby="student-link-title">
-      <div class="panel-head">
-        <h2 id="student-link-title"><Icon name="link" size={18} />Student link</h2>
-        {#if account.studentLink?.open}
-          <span class="kiosk-state">
-            <span class="status-dot" class:live={studentLink.viewers > 0} aria-hidden="true"></span>{studentLink.viewers} viewing
-          </span>
-        {/if}
-      </div>
-      {#if account.studentLink?.open && currentRoom()}
-        <RoomCode code={currentRoom()!.code} size="small" />
-        <div class="kiosk-actions">
-          <button class="btn btn-small" onclick={popOutRoom}><Icon name="monitor" size={14} />Pop out</button>
-        </div>
-      {:else if account.studentLink?.open}
-        <p class="muted small">A code for students to join appears when a class is on.</p>
-      {:else}
-        <p class="muted small">Students can join each class from their own Chromebook or phone with a code.</p>
-        <div class="kiosk-actions"><a class="btn btn-small" href="/student-link">Open student link</a></div>
-      {/if}
-    </section>
-
-    <aside class="requests-panel" aria-labelledby="requests-title" data-tip="tip-requests">
-      <div class="panel-head">
-        <h2 id="requests-title"><Icon name="hand" size={18} />Requests</h2>
-        {#if requests.length}<span class="count">{requests.length}</span>{/if}
-      </div>
-      {#if account.kiosk?.kind !== 'device' && !account.studentLink?.open}
-        <p class="muted small">
-          Students can ask you from a paired kiosk, like a tablet or Chromebook by the door, or from their own device on
-          the Student link. When this computer is the kiosk, let them go with your PIN there.
-        </p>
-      {:else}
-        {#if requests.length}
-          <ul class="requests">
-            {#each requests as request (request.id)}
-              <li>
-                <div class="request-who">
-                  <strong>{request.studentName}</strong>
-                  <span class="muted small">{ago(request.askedAt)}</span>
-                </div>
-                <span class="destination-chip"><DestinationIcon label={request.destination} size={22} />{request.destination}</span>
-                <div class="row" style="gap:6px;flex-wrap:wrap">
-                  {#each request.blocks as block (block)}<span class="badge warn">{blockText[block](request)}</span>{/each}
-                </div>
-                <div class="request-answer">
-                  <button class="btn btn-small" onclick={() => answerRequest(request, false)}>Deny</button>
-                  <button class="btn btn-small btn-primary" onclick={() => answerRequest(request, true)}>
-                    <Icon name="check" size={14} />Approve
-                  </button>
-                </div>
-              </li>
-            {/each}
-          </ul>
-        {:else}
           <p class="muted small">
-            No requests right now. When something stops a student at the kiosk, they can ask you, and it shows up here.
+            {account.kiosk.lastSeenAt ? `Last connected at ${time(account.kiosk.lastSeenAt)}. ` : ''}Until it reconnects,
+            students can only sign back in there.
           </p>
+          <div class="kiosk-actions">
+            <button
+              class="btn btn-small btn-primary"
+              onclick={() => {
+                reconnecting = true;
+                pairing = true;
+              }}>Reconnect</button
+            >
+            <button class="btn btn-small btn-quiet" onclick={disconnect}>Disconnect</button>
+          </div>
         {/if}
-      {/if}
-    </aside>
+      </div>
+
+      <div class="device" aria-labelledby="student-link-title">
+        <div class="panel-head">
+          <h3 id="student-link-title"><Icon name="smartphone" size={18} />Student devices</h3>
+          {#if account.studentLink?.open}
+            <span class="kiosk-state">
+              <span class="status-dot" class:live={studentLink.viewers > 0} aria-hidden="true"></span>{studentLink.viewers} joined
+            </span>
+          {/if}
+        </div>
+        {#if account.studentLink?.open && currentRoom()}
+          <RoomCode code={currentRoom()!.code} size="small" />
+          <div class="kiosk-actions">
+            <button class="btn btn-small" onclick={popOutRoom}><Icon name="pop-out" size={14} />Pop out</button>
+          </div>
+        {:else if account.studentLink?.open}
+          <p class="muted small">A code for students to join appears when a class is on.</p>
+        {:else}
+          <p class="muted small">Students can join each class from their own Chromebook or phone with a code.</p>
+          <div class="kiosk-actions"><a class="btn btn-small" href="/student-link">Turn on student devices</a></div>
+        {/if}
+      </div>
+    </section>
     </div>
   </div>
 {/if}
@@ -619,18 +559,44 @@
     position: sticky;
     top: 40px;
     display: grid;
-    grid-template-rows: auto auto auto minmax(0, 1fr);
+    align-content: start;
     gap: 12px;
     height: var(--fit);
   }
 
-  .kiosk-card {
+  .devices-card {
     display: grid;
-    gap: 10px;
-    padding: 14px 16px;
+    align-content: start;
+    gap: 14px;
+    padding: 16px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
+  }
+
+  .devices-title {
+    color: var(--faint);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .device {
+    display: grid;
+    gap: 10px;
+  }
+
+  .device + .device {
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .panel-head h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
   }
 
   .kiosk-state {
@@ -648,70 +614,10 @@
     gap: 6px;
   }
 
-  .requests-panel {
-    display: grid;
-    align-content: start;
-    gap: 14px;
-    padding: 18px;
-    overflow-y: auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-  }
-
   .panel-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-  }
-
-  .panel-head h2 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .count {
-    display: grid;
-    place-items: center;
-    min-width: 26px;
-    height: 26px;
-    padding: 0 8px;
-    border-radius: 999px;
-    background: #6a4cbb;
-    color: #fff;
-    font-size: 13px;
-    font-weight: 800;
-  }
-
-  .requests {
-    display: grid;
-    gap: 10px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .requests li {
-    display: grid;
-    gap: 8px;
-    padding: 12px;
-    border: 1px solid #d9c6ef;
-    border-radius: var(--radius);
-    background: #faf7fe;
-  }
-
-  .request-who {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .request-answer {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
   }
 
   @media (max-width: 1100px) {

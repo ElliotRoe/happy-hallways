@@ -12,6 +12,7 @@
   import ConfirmDialog from '#lib/ConfirmDialog.svelte';
   import Icon from '#lib/Icon.svelte';
   import { popOutRoom } from '#lib/popOut.ts';
+  import RoomBoard from '#lib/RoomBoard.svelte';
   import RoomCode from '#lib/RoomCode.svelte';
   import { currentRoom, maxViewers, studentLink } from '#lib/studentLink.svelte.ts';
   import StudentLinkCopy from '#lib/StudentLinkCopy.svelte';
@@ -24,6 +25,12 @@
   const open = $derived(!!account.studentLink?.open);
   const room = $derived(currentRoom());
   const roomClass = $derived(findClass(room?.classId)?.name ?? '');
+
+  /** The board, full screen on this computer (say, on the projector), until Escape. It's always here, just hidden. */
+  let board: HTMLDivElement;
+  function fullScreen() {
+    board.requestFullscreen?.();
+  }
   const claims = $derived(
     account.claims
       .map((claim) => {
@@ -45,7 +52,7 @@
 <div class="page">
   <header class="page-head">
     <div>
-      <p class="eyebrow">Student link</p>
+      <p class="eyebrow">Student devices</p>
       <h1>Let students sign out from their seats</h1>
       <p class="muted">
         Each class gets its own code, new every time the class on the kiosk changes. Students type it at
@@ -66,7 +73,7 @@
     <div class="card-head">
       <div>
         <p class="eyebrow">{open ? 'Open' : 'Closed'}</p>
-        <h2>{!open ? 'The student link is closed' : room ? `${roomClass}'s code` : 'Waiting for a class'}</h2>
+        <h2>{!open ? 'Student devices are off' : room ? `${roomClass}'s code` : 'Waiting for a class'}</h2>
         <p class="muted small">
           {!open
             ? 'Nobody can join until you open it.'
@@ -76,10 +83,10 @@
         </p>
       </div>
       {#if open}
-        <button class="btn" onclick={() => setStudentLink(false)}><Icon name="lock" size={16} />Close student link</button>
+        <button class="btn" onclick={() => setStudentLink(false)}><Icon name="lock" size={16} />Turn off student devices</button>
       {:else}
         <button class="btn btn-primary" onclick={() => setStudentLink(true)}>
-          <Icon name="link" size={16} />Open student link
+          <Icon name="smartphone" size={16} />Turn on student devices
         </button>
       {/if}
     </div>
@@ -88,7 +95,8 @@
       <RoomCode code={room.code} />
       <StudentLinkCopy />
       <div class="row">
-        <button class="btn btn-small" onclick={popOutRoom}><Icon name="monitor" size={14} />Pop out for the board</button>
+        <button class="btn btn-small" onclick={fullScreen}><Icon name="maximize" size={14} />Full screen</button>
+        <button class="btn btn-small" onclick={popOutRoom}><Icon name="pop-out" size={14} />Pop out</button>
       </div>
       <p class="viewers" role="status">
         <span class="status-dot" class:live={studentLink.viewers > 0} aria-hidden="true"></span>
@@ -166,7 +174,14 @@
   />
 {/if}
 
+<div class="board-holder" bind:this={board}><RoomBoard /></div>
+
 <style>
+  /* Only shown while it's full screen. */
+  .board-holder:not(:fullscreen) {
+    display: none;
+  }
+
   .viewers {
     display: flex;
     align-items: center;

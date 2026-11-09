@@ -33,7 +33,7 @@
     </p>
     <p>
       Your students' full names are kept on your computer, so you can tell them apart and see the same student across your
-      classes. Screens students can see, the kiosk and the student link, only ever show a first name and the first few
+      classes. Screens students can see, the kiosk and their own devices, only ever show a first name and the first few
       letters of the last name. Your backup file holds full names, so keep it somewhere only you can open.
     </p>
     <p>
@@ -43,7 +43,7 @@
     </p>
     <p>
       If you turn on PINs for a class, each student also has a short PIN to type at the kiosk, or to set up their own
-      device on the student link. Happy Hallways makes these up, or you can choose them. Never use real student ID
+      device for passes. Happy Hallways makes these up, or you can choose them. Never use real student ID
       numbers.
     </p>
   </section>
@@ -69,9 +69,9 @@
   </section>
 
   <section class="card">
-    <h2>The student link</h2>
+    <h2>Students' own devices</h2>
     <p>
-      If you open the student link, students who have it can see, on their own device, whether passes are open and how
+      If you turn on student devices, students who have the class code can see, on their own device, whether passes are open and how
       many students are out or waiting at each place. Never who: students' names stay on the kiosk, in your room. Their
       device connects straight to your computer, the same way the kiosk does.
     </p>
@@ -83,7 +83,7 @@
     </p>
     <p>
       Each class gets a new code, shown on your kiosk and your screen, and the old one stops working when the class changes.
-      You can close the student link at any time, or get a new code straight away.
+      You can turn student devices off at any time, or get a new code straight away.
       It never shows another student's name, how long anyone else has been out, any PIN, or anything you've set for a
       student.
     </p>

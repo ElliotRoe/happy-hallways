@@ -18,6 +18,10 @@ const interfaceIcons = {
   'chevron-down': 'chevron-down',
   tablet: 'tablet',
   monitor: 'monitor',
+  // The kiosk is a screen by the door: a monitor, never a phone (students' own devices are phones).
+  kiosk: 'monitor',
+  'pop-out': 'external-link',
+  maximize: 'maximize',
   settings: 'settings',
   door: 'door-open',
   trash: 'trash',

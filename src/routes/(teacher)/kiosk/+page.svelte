@@ -135,12 +135,12 @@
         <div class="row">
           {#if kiosk.kind === 'device'}
             <button class="btn" onclick={pair}>
-              <Icon name="tablet" size={16} />Pair a different device
+              <Icon name="kiosk" size={16} />Pair a different device
             </button>
             <button class="btn" onclick={thisComputer}><Icon name="monitor" size={16} />Use this computer instead</button>
           {:else}
             <button class="btn" onclick={pair}>
-              <Icon name="tablet" size={16} />Pair a device instead
+              <Icon name="kiosk" size={16} />Pair a device instead
             </button>
           {/if}
           <button class="btn btn-quiet" onclick={() => (confirmRemove = true)}>Stop using a kiosk</button>
@@ -149,7 +149,7 @@
     {:else}
       <div class="choice-cards">
         <section class="choice-card" class:disabled={account.networkBlocked}>
-          <span class="icon-tile"><Icon name="tablet" /></span>
+          <span class="icon-tile"><Icon name="kiosk" /></span>
           <h2>Pair a device</h2>
           <p class="muted small">
             A tablet or Chromebook by the door. It talks straight to this laptop, so keep this laptop open and awake

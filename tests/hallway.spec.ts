@@ -55,6 +55,13 @@ async function useScheduleOnHome(page: Page, name = 'Schedule 1') {
   await expect(page.locator('.status-box')).toContainText(name);
 }
 
+/** "No passes now" is in the control drawer in the corner; it opens the drawer first if it's down. */
+async function noPassesNow(page: Page) {
+  const tab = page.locator('.drawer .tab');
+  if ((await tab.getAttribute('aria-expanded')) === 'false') await tab.click();
+  await page.getByRole('button', { name: 'No passes now' }).click();
+}
+
 async function setPin(page: Page) {
   await page.getByRole('link', { name: 'Kiosk', exact: true }).click();
   await page.getByLabel('PIN (4 to 8 digits)').fill('2468');
@@ -742,7 +749,7 @@ test('a blocked student asks, and the teacher approves or denies on Home', async
   await expect(laptop).not.toHaveTitle(/Request/);
 
   // During a No-Pass Time the teacher started, Maya Ca. asks, and is told no.
-  await laptop.getByRole('button', { name: 'No passes now' }).click();
+  await noPassesNow(laptop);
   await expect(tablet.getByText('No passes right now.')).toBeVisible({ timeout: 15_000 });
   await tablet.getByRole('button', { name: /Maya Ca\./ }).click();
   await tablet.getByRole('button', { name: /^Bathroom 1/ }).click();
@@ -752,7 +759,9 @@ test('a blocked student asks, and the teacher approves or denies on Home', async
   await expect(second).toContainText('No-pass time', { timeout: 15_000 });
   await second.getByRole('button', { name: 'Deny' }).click();
   await expect(tablet.getByRole('button', { name: /Maya Ca\..*Not right now/ })).toBeVisible({ timeout: 15_000 });
-  await expect(laptop.getByText('No requests right now')).toBeVisible();
+  // With none left, the drawer slides back down.
+  await expect(laptop.locator('.drawer .count')).toHaveText('0');
+  await expect(laptop.getByRole('button', { name: 'Deny' })).toHaveCount(0);
 
   // History keeps both answers.
   await laptop.getByRole('link', { name: 'History', exact: true }).click();
@@ -937,7 +946,7 @@ test('dragging on the calendar adds a no-pass time, and the teacher can stop pas
   await setPin(page);
   await page.getByRole('button', { name: 'Use this computer' }).click();
   await goHome(page);
-  await page.getByRole('button', { name: 'No passes now' }).click();
+  await noPassesNow(page);
   await expect(page.getByText('Passes stay closed until you open them')).toBeVisible();
   await expect(page.locator('.status-box').getByRole('img', { name: 'No passes' })).toBeVisible();
   await page.getByRole('button', { name: 'Open kiosk screen' }).click();
@@ -1064,7 +1073,7 @@ test('an offline kiosk reconnects with a code, the same way it paired, handing o
   const again = await laptopContext.newPage();
   await skipTips(again);
   await again.goto('/');
-  await again.locator('.kiosk-card').getByRole('button', { name: 'Reconnect' }).click();
+  await again.locator('.devices-card').getByRole('button', { name: 'Reconnect' }).click();
   await expect(again.getByRole('heading', { name: 'On the kiosk, tap Reconnect, then type this code' })).toBeVisible();
   await expect(again.getByText(/Waiting for the device|Connected!/)).toBeVisible({ timeout: 20_000 });
   const code = (await again.locator('.pair-code').textContent().catch(() => ''))?.trim() ?? '';
@@ -1300,7 +1309,7 @@ test('a student who can always go passes a full destination and No-Pass Time wit
   // During No-Pass Time, everyone else is held back, but Maya Ca. still goes.
   await exitKiosk(page);
   await goHome(page);
-  await page.getByRole('button', { name: 'No passes now' }).click();
+  await noPassesNow(page);
   await page.getByRole('button', { name: 'Open kiosk screen' }).click();
   await expect(page.getByText('No passes right now.')).toBeVisible();
   await page.getByRole('button', { name: /Jordan E\./ }).click();
@@ -1316,9 +1325,9 @@ test('a student who can always go passes a full destination and No-Pass Time wit
 
 /** Opens the Student link from its tab, and returns its address. */
 async function openStudentLink(page: Page) {
-  await page.getByRole('link', { name: 'Student link', exact: true }).click();
-  await page.getByRole('button', { name: 'Open student link' }).click();
-  const url = await page.getByRole('textbox', { name: 'Student link' }).inputValue();
+  await page.getByRole('link', { name: 'Student devices', exact: true }).click();
+  await page.getByRole('button', { name: 'Turn on student devices' }).click();
+  const url = await page.getByRole('textbox', { name: 'Join link' }).inputValue();
   // Each class period is a Room, joined at /join/ with its six-digit code (docs/adr/0019).
   expect(url).toMatch(/\/join\/\d{6}$/);
   return url;
@@ -1342,7 +1351,7 @@ test('students watch who is out and the line, live, from the student link', asyn
 
   // Closed until the teacher opens it; Home offers to.
   await goHome(laptop);
-  await expect(laptop.getByRole('link', { name: 'Open student link' })).toBeVisible();
+  await expect(laptop.getByRole('link', { name: 'Turn on student devices' })).toBeVisible();
   const url = await openStudentLink(laptop);
   await expect(laptop.getByText('Nobody is viewing right now')).toBeVisible({ timeout: 20_000 });
 
@@ -1376,20 +1385,20 @@ test('students watch who is out and the line, live, from the student link', asyn
   // Home shows the link, and who's watching.
   await goHome(laptop);
   await expect(laptop.getByLabel(`Class code ${url.split('/').pop()}`)).toBeVisible();
-  await expect(laptop.getByText('1 viewing')).toBeVisible();
+  await expect(laptop.getByText('1 joined')).toBeVisible();
 
   // Closing it tells the student; opening it again brings the page back by itself.
-  await laptop.getByRole('link', { name: 'Student link', exact: true }).click();
-  await laptop.getByRole('button', { name: 'Close student link' }).click();
+  await laptop.getByRole('link', { name: 'Student devices', exact: true }).click();
+  await laptop.getByRole('button', { name: 'Turn off student devices' }).click();
   await expect(student.getByRole('heading', { name: "This class isn't open right now" })).toBeVisible({ timeout: 10_000 });
-  await laptop.getByRole('button', { name: 'Open student link' }).click();
+  await laptop.getByRole('button', { name: 'Turn on student devices' }).click();
   await expect(student.getByRole('heading', { name: 'Period 6' })).toBeVisible({ timeout: 40_000 });
 
   // A new code: the old one stops working, and the new one works.
   await laptop.getByRole('button', { name: 'New code' }).click();
   await laptop.getByRole('dialog').getByRole('button', { name: 'New code' }).click();
   await expect(student.getByRole('heading', { name: 'This code has ended' })).toBeVisible({ timeout: 10_000 });
-  const newUrl = await laptop.getByRole('textbox', { name: 'Student link' }).inputValue();
+  const newUrl = await laptop.getByRole('textbox', { name: 'Join link' }).inputValue();
   expect(newUrl).not.toBe(url);
   await expect(laptop.getByText('Nobody is viewing right now')).toBeVisible({ timeout: 20_000 });
   await student.goto(newUrl);
@@ -1436,7 +1445,7 @@ test("the teacher's own computer as the kiosk keeps the student link going, with
   await laptop.getByLabel('PIN').fill('2468');
   await laptop.getByRole('button', { name: 'Unlock' }).click();
   await laptop.getByRole('button', { name: 'Exit kiosk' }).click();
-  await laptop.getByRole('button', { name: 'No passes now' }).click();
+  await noPassesNow(laptop);
   await expect(student.getByText('No passes', { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(student.getByText('Your teacher will open passes again.')).toBeVisible();
   await expect(student.locator('body')).not.toContainText('2468');

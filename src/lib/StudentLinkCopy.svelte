@@ -18,7 +18,7 @@
 </script>
 
 <div class="copy-link">
-  <input readonly value={url} aria-label="Student link" onfocus={(event) => event.currentTarget.select()} />
+  <input readonly value={url} aria-label="Join link" onfocus={(event) => event.currentTarget.select()} />
   <button class="btn btn-small" onclick={copy}>
     <Icon name={copied ? 'check' : 'copy'} size={14} />{copied ? 'Copied' : 'Copy'}
   </button>

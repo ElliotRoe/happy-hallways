@@ -372,7 +372,7 @@
       {:else if reach === 'closed'}
         <span class="icon-ring"><Icon name="lock" size={30} /></span>
         <h1>This class isn't open right now</h1>
-        <p>Your teacher has turned the student link off, or no class is on. Look for the code when your class starts.</p>
+        <p>Your teacher has turned student devices off, or no class is on. Look for the code when your class starts.</p>
         <a class="big" href="/join">Type a code</a>
       {:else if reach === 'full'}
         <span class="icon-ring warn"><Icon name="users" size={30} /></span>

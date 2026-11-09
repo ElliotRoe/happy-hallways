@@ -20,9 +20,9 @@ test('a student claims their own device with their PIN, then signs out and back 
   await laptop.getByRole('link', { name: 'Roster', exact: true }).click();
   await laptop.getByRole('switch', { name: 'Students use PINs' }).check();
 
-  await laptop.getByRole('link', { name: 'Student link', exact: true }).click();
-  await laptop.getByRole('button', { name: 'Open student link' }).click();
-  const url = await laptop.getByRole('textbox', { name: 'Student link' }).inputValue();
+  await laptop.getByRole('link', { name: 'Student devices', exact: true }).click();
+  await laptop.getByRole('button', { name: 'Turn on student devices' }).click();
+  const url = await laptop.getByRole('textbox', { name: 'Join link' }).inputValue();
   await expect(laptop.getByText('Nobody is viewing right now')).toBeVisible({ timeout: 20_000 });
 
   // Claiming: type your first name and PIN. No names are ever sent to the device; a wrong PIN is refused.
@@ -56,7 +56,7 @@ test('a student claims their own device with their PIN, then signs out and back 
   await laptop.getByRole('link', { name: 'History', exact: true }).click();
   const row = laptop.getByRole('row', { name: /Sam L\./ });
   await expect(row).toContainText('Still out', { timeout: 10_000 });
-  await expect(row).toContainText('Student link');
+  await expect(row).toContainText('Student device');
 
   // Back again.
   await student.getByRole('button', { name: "I'm back" }).click();
@@ -64,7 +64,7 @@ test('a student claims their own device with their PIN, then signs out and back 
   await expect(row).not.toContainText('Still out', { timeout: 10_000 });
 
   // The teacher stops the device acting as Sam; it goes back to only looking.
-  await laptop.getByRole('link', { name: 'Student link', exact: true }).click();
+  await laptop.getByRole('link', { name: 'Student devices', exact: true }).click();
   await laptop.getByRole('listitem').filter({ hasText: 'Sam L.' }).getByRole('button', { name: 'Stop' }).click();
   await expect(student.getByRole('button', { name: 'Use this device for passes' })).toBeVisible({ timeout: 10_000 });
   expect(await student.evaluate(() => Object.keys(localStorage))).toEqual([]);
@@ -107,7 +107,7 @@ test('each class is a new Room with a new code, and every Claim ends with its Ro
     await page.keyboard.press('Escape');
   });
   await page.goto('/student-link');
-  await expect(page.getByLabel('Class code 481516')).toBeVisible();
+  await expect(page.getByLabel('Class code 481516').first()).toBeVisible();
   await expect(page.getByRole('listitem').filter({ hasText: 'Sam L.' })).toBeVisible();
 
   await page.locator('.status-box').click();

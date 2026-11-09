@@ -7,7 +7,12 @@
   import SidebarClasses from './SidebarClasses.svelte';
   import StatusWidget from './StatusWidget.svelte';
 
-  /** The status box first, then everything the teacher sets up. What's happening right now lives on Home. */
+  /**
+   * The status box first, then what the teacher checks every day (Home and
+   * History), the classes, what they set up, and the devices that run the door,
+   * each under its own label. What's happening right
+   * now lives on Home.
+   */
   let classesOpen = $state(true);
 
   const path = $derived(page.url.pathname);
@@ -20,6 +25,7 @@
 
   <nav class="nav" aria-label="Main">
     <a class="nav-link" class:active={path === '/'} href="/"><Icon name="home" />Home</a>
+    <a class="nav-link" class:active={path === '/history'} href="/history"><Icon name="history" />History</a>
 
     <button class="nav-toggle" aria-expanded={classesOpen} onclick={() => (classesOpen = !classesOpen)}>
       <Icon name="users" />Classes
@@ -34,33 +40,28 @@
       </div>
     {/if}
 
+    <p class="nav-label">Setup</p>
     <a class="nav-link" class:active={path === '/roster'} href="/roster">
       <Icon name="contact" />Roster
     </a>
-
     <a class="nav-link" class:active={path === '/destinations'} href="/destinations">
       <Icon name="map-pin" />Destinations
     </a>
-
+    <a class="nav-link" class:active={path.startsWith('/schedule')} href="/schedule">
+      <Icon name="calendar" />Schedule
+    </a>
     <a class="nav-link" class:active={path === '/pass-options'} href="/pass-options">
       <Icon name="clock" />Pass Options
     </a>
 
-    <a class="nav-link" class:active={path.startsWith('/schedule')} href="/schedule">
-      <Icon name="calendar" />Schedule
-    </a>
-
+    <p class="nav-label">Devices</p>
     <a class="nav-link" class:active={path === '/kiosk'} href="/kiosk">
-      <Icon name="tablet" />Kiosk
+      <Icon name="kiosk" />Kiosk
     </a>
-
     <a class="nav-link" class:active={path === '/student-link'} href="/student-link">
-      <Icon name="link" />Student link
+      <Icon name="smartphone" />Student devices
     </a>
 
-    <a class="nav-link" class:active={path === '/history'} href="/history">
-      <Icon name="history" />History
-    </a>
   </nav>
 
   <div class="sidebar-foot">

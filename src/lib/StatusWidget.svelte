@@ -31,7 +31,7 @@
     <Icon name={passStatusIcon[status]} size={16} />
   </span>
   <strong class="class-name">{activeClassLabel()}</strong>
-  <span class="row-line"><Icon name="tablet" size={14} />{kiosk.text}</span>
+  <span class="row-line"><Icon name="kiosk" size={14} />{kiosk.text}</span>
   <span class="row-line"><Icon name="calendar" size={14} />{schedule}</span>
   {#if account.kiosk?.kind === 'device'}
     <span class="row-line requests" class:waiting={requests}>

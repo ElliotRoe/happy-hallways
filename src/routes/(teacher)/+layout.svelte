@@ -14,6 +14,7 @@
   import SiteFooter from '#lib/SiteFooter.svelte';
   import Toast from '#lib/Toast.svelte';
   import Popups from '#lib/Popups.svelte';
+  import ControlDrawer from '#lib/ControlDrawer.svelte';
   import { keepAwake } from '#lib/wakeLock.ts';
   import { mergeSuggestions } from '#lib/merge.ts';
 
@@ -125,7 +126,7 @@
   </div>
   <!-- Messages for every page float in this corner, above the checklist, so the page never shifts. -->
   {#if ready}
-    <div class="corner">
+    <div class="corner" class:with-drawer={account.classes.length > 0}>
       {#if updated.current}
         <Toast icon="sparkles">
           <div class="update">
@@ -146,23 +147,32 @@
       {/if}
       <OverdueReminder />
       {#if onboarding.showChecklist}<GettingStarted />{/if}
+      <!-- Requests and No passes, on every page, at the very bottom of the corner. -->
+      {#if account.classes.length}<ControlDrawer />{/if}
     </div>
     <Popups />
   {/if}
 {/if}
 
 <style>
+  /* The control drawer sits flush with the bottom edge; without it, the corner keeps a margin. */
+  /* Lined up with the page's own right margin. */
   .corner {
     position: fixed;
-    right: 20px;
+    right: clamp(18px, 5vw, 64px);
     bottom: 20px;
     z-index: 45;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 10px;
-    width: min(400px, calc(100vw - 40px));
+    /* Wide enough for Requests to read on two lines. */
+    width: min(420px, calc(100vw - 40px));
     pointer-events: none;
+  }
+
+  .corner.with-drawer {
+    bottom: 0;
   }
 
   .update {

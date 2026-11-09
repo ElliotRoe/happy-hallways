@@ -316,6 +316,20 @@ textarea {
   transform: rotate(-90deg);
 }
 
+/* A small heading over a group of sidebar links. */
+.nav-label {
+  margin: 12px 10px 2px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nav-gap {
+  margin-top: 12px;
+}
+
 .nav-sub {
   display: grid;
   gap: 1px;

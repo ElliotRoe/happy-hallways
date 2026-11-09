@@ -18,7 +18,7 @@ export const steps = [
   },
   {
     key: 'kiosk',
-    icon: 'tablet',
+    icon: 'kiosk',
     title: 'Start the kiosk',
     short: 'A tablet by the door, or this computer. Students tap their name.',
     text: 'Pair a spare tablet or Chromebook by the door, or use this computer. Students tap their name to sign out and back in, and you see who’s out from your desk.',

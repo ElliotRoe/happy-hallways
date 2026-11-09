@@ -24,7 +24,7 @@ The only form of a student's name that students or passers-by ever see, on the
 kiosk — a first name plus as many leading letters of the last name as it takes
 to tell them apart from everyone else in their class ("Maya C.", or "Maya Che."
 if a Maya Cha. shares the room). The student's full name stays on the teacher's
-computer. The Student link shows no names but a device's own student's.
+computer. A Student device shows no names but its own student's.
 _Avoid_: Full name, last initial, student name
 
 **Destination**:
@@ -68,7 +68,7 @@ _Avoid_: Pass Limit (that is how many may be out at once), quota, budget, cap
 
 **Request**:
 A blocked student asking the teacher to let them go, made at the kiosk or from
-a claimed device on the Student link. The
+a claimed Student device. The
 teacher sees what the student wants to do and answers yes or no, either on Home
 or with their PIN at the kiosk; a yes starts the pass at once. Whatever was
 blocking them, the teacher's choice is the same.
@@ -183,7 +183,7 @@ _Avoid_: Auto mode, autopilot, paused schedule
 **Kiosk**:
 The locked, student-facing device by the classroom door. A teacher has at most
 one kiosk at a time; pairing a new one disconnects the old. A teacher may have
-none, and students act from the Student link instead. The kiosk acts only while
+none, and students act from their Student devices instead. The kiosk acts only while
 it can reach the teacher's computer, which decides who may leave.
 _Avoid_: Kiosk mode, door screen, station, student mode
 
@@ -195,26 +195,27 @@ has not paired successfully is never a kiosk; if pairing is impossible on the
 network, the teacher's own computer is the kiosk.
 _Avoid_: Linking, connecting, logging in
 
-**Student link**:
-How students use their own Chromebook or phone the way they use the kiosk, by
-joining the class's Room with its code or QR code. Anyone in the Room sees how
+**Student device**:
+A student's own Chromebook or phone, used the way they use the kiosk, by
+joining the class's Room with its code or QR code. The teacher turns student
+devices on or off for all their classes. Anyone in the Room sees how
 the door stands in numbers: whether passes are open, and how many are out and
 waiting at each destination, never who. A device holding a Claim can also act as
 that student, and shows that student their own status: start a pass, sign back
 in, join or leave a Line, and make a Request. Students' devices connect to the
-teacher's computer, not the kiosk, so the link works only while Happy Hallways
-is open there, and only while the teacher has it open.
-_Avoid_: Share link, public view, student view, student mode
+teacher's computer, not the kiosk, so they work only while Happy Hallways is
+open there, and only while the teacher has student devices turned on.
+_Avoid_: Student link (its old name), share link, public view, student view, student mode
 
 **Room**:
-The Student link for one class period, joined with a short code (or its QR code)
+What student devices join for one class period, with a short code (or its QR code)
 shown on the kiosk and the teacher's screen. Each time the Active Class changes
 there is a new Room with a new code, and the old code stops working, so students
 join again in every class. Between classes there is no Room.
 _Avoid_: Lobby, session, game, link (for the code)
 
 **Claim**:
-A student's own device made to act as that student on the Student link, by
+A Student device made to act as its student, by
 typing their first name and PIN after joining the Room. It needs PINs to be on.
 A student has at most one claimed device. A Claim lasts until its Room ends,
 when the class changes; the teacher can end one sooner, and the device goes back
@@ -301,7 +302,7 @@ _Avoid_: Missing, away, out (that is a student on a pass)
 
 **Backup**:
 A single file holding everything the teacher's laptop knows: classes, students
-(with their PINs), passes, destinations, Pass Options, schedules, the kiosk pairing and the Student link. Restoring it replaces
+(with their PINs), passes, destinations, Pass Options, schedules, the kiosk pairing and the Room. Restoring it replaces
 everything in that browser and puts the teacher back exactly where they were.
 Happy Hallways has no accounts or sign-in; the backup is the only copy that leaves the
 browser.
