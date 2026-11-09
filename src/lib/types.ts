@@ -312,6 +312,8 @@ export type Account = {
   studentLink: { open: boolean; room: Room | null } | null;
   /** Students' own devices that act as them in the current Room. At most one per student. See docs/adr/0016. */
   claims: Claim[];
+  /** A chime on the teacher's computer when a pass becomes Overdue. Off unless the teacher turns it on. */
+  overdueChime?: boolean;
   /** Every Attendance mark, for classes that take Attendance. See docs/adr/0020. */
   attendance: AttendanceMark[];
   lastExportedAt?: string;

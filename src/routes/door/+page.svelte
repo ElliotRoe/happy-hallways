@@ -58,6 +58,7 @@
   import SupportDetails from '#lib/SupportDetails.svelte';
   import { serveStudentLink } from '#lib/studentLink.svelte.ts';
   import { keepAwake } from '#lib/wakeLock.ts';
+  import { yourTurnSound } from '#lib/sound.ts';
   import { formatClock, nextClassPeriod } from '#lib/schedule.ts';
 
   const local = $derived(isLocal());
@@ -109,6 +110,13 @@
   );
   const ready = $derived(upNext(clock));
   const isUpNext = (studentId: string) => ready.some((spot) => spot.studentId === studentId);
+  // A short "your turn" sound when someone in line becomes Up Next. Never anything about time (docs/adr/0003).
+  let upNextBefore = new Set<string>();
+  $effect(() => {
+    const now = new Set(ready.map((spot) => spot.studentId));
+    if ([...now].some((id) => !upNextBefore.has(id))) yourTurnSound();
+    upNextBefore = now;
+  });
   const blocked = $derived(noPassNow(clock));
 
   let code = $state(page.url.searchParams.get('code') ?? '');

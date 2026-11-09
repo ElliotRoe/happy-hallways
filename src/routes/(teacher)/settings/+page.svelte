@@ -1,6 +1,6 @@
 <script lang="ts">
   import SettingsTabs from '#lib/SettingsTabs.svelte';
-  import { account, exportAccount, importAccount } from '#lib/account.svelte.ts';
+  import { account, exportAccount, importAccount, setOverdueChime } from '#lib/account.svelte.ts';
   import ConfirmDialog from '#lib/ConfirmDialog.svelte';
   import { dayKey, shortDate } from '#lib/passes.ts';
   import { download } from '#lib/csv.ts';
@@ -94,6 +94,26 @@
   </section>
 
   <section class="card">
+    <div class="option-row">
+      <div>
+        <p class="eyebrow">Sounds</p>
+        <h2>Chime when a student is overdue</h2>
+        <p class="muted small">A soft chime on this computer when a pass runs over its expected time. The kiosk never makes it.</p>
+      </div>
+      <label class="switch">
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label="Chime when a student is overdue"
+          checked={!!account.overdueChime}
+          onchange={(event) => setOverdueChime(event.currentTarget.checked)}
+        />
+        <span aria-hidden="true"></span>
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
     <div>
       <p class="eyebrow">Getting started</p>
       <h2>Help getting set up</h2>
@@ -122,6 +142,13 @@
 {/if}
 
 <style>
+  .option-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
   .check {
     display: flex;
     align-items: center;

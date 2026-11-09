@@ -1132,6 +1132,11 @@ function moveActiveClass(activeClass: ActiveClass) {
   }
 }
 
+export function setOverdueChime(on: boolean) {
+  account.overdueChime = on || undefined;
+  save();
+}
+
 export function setPin(pin: string) {
   account.pin = pin;
   save();

@@ -16,6 +16,7 @@
   import Icon from './Icon.svelte';
   import { kioskOnline } from './link.svelte';
   import { duration, isOverdue } from './passes';
+  import { overdueChime } from './sound';
   import Modal from './Modal.svelte';
   import { slide } from 'svelte/transition';
   import type { Block, PassRequest } from './types';
@@ -64,6 +65,14 @@
     if (count > lastCount) setOpen(true);
     if (count === 0 && lastCount > 0) setOpen(false);
     lastCount = count;
+  });
+
+  // The chime, if the teacher turned it on, when another student becomes Overdue.
+  // svelte-ignore state_referenced_locally
+  let overdueBefore = overdue.length;
+  $effect(() => {
+    if (overdue.length > overdueBefore && account.overdueChime) overdueChime();
+    overdueBefore = overdue.length;
   });
 
   /** A paired kiosk that can't reach this tab may already have signed overdue students back in. */
