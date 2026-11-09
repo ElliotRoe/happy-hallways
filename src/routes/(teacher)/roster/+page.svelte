@@ -1,7 +1,10 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
-  import { account, classesOf, dismissRosterMerge, findStudent, mergeStudents, setStudentPins } from '#lib/account.svelte.ts';
+  import { account, classesOf, dismissMerge, dismissRosterMerge, findStudent, mergeStudents, setStudentPins, undoMerge } from '#lib/account.svelte.ts';
+  import Modal from '#lib/Modal.svelte';
+  import type { MergeSuggestion } from '#lib/merge.ts';
+  import { shortDate } from '#lib/passes.ts';
   import EditStudentDialog from '#lib/EditStudentDialog.svelte';
   import Icon from '#lib/Icon.svelte';
   import { mergeSuggestions } from '#lib/merge.ts';
@@ -14,6 +17,22 @@
    * class. Full names stay on this computer. See docs/adr/0015 and 0017.
    */
   const suggestions = $derived(mergeSuggestions(account));
+  /** The pair the teacher is checking before merging, and whose PIN to keep if they differ. */
+  let confirming = $state<MergeSuggestion | null>(null);
+  let pinFrom = $state('');
+  const passCount = (studentId: string) => account.passes.filter((pass) => pass.studentId === studentId).length;
+  const fullName = (student: { firstName: string; lastName?: string }) => (student.lastName ? `${student.firstName} ${student.lastName}` : null);
+  const recentMerges = $derived([...(account.merges ?? [])].reverse().slice(0, 3));
+
+  function confirmMerge(suggestion: MergeSuggestion) {
+    confirming = suggestion;
+    pinFrom = suggestion.keep.id;
+  }
+
+  function differentStudents() {
+    for (const suggestion of suggestions) dismissMerge(suggestion.keep.id, suggestion.drop.id);
+    dismissRosterMerge();
+  }
   let showPins = $state(false);
   /** A class page links here with ?student=, to edit that student. */
   let editing = $state<Student | null>(findStudent(page.url.searchParams.get('student') ?? undefined) ?? null);
@@ -79,15 +98,35 @@
               <span class="muted">and</span>
               <strong>{nameOf(suggestion.drop)}</strong> in {suggestion.dropClasses.join(', ') || 'no class now'}
             </span>
-            <button class="btn btn-small btn-primary" onclick={() => mergeStudents(suggestion.keep.id, suggestion.drop.id)}>
-              <Icon name="check" size={14} />Same student
-            </button>
+            <span class="row">
+              <button class="btn btn-small btn-quiet" onclick={() => dismissMerge(suggestion.keep.id, suggestion.drop.id)}>Different students</button>
+              <button class="btn btn-small btn-primary" onclick={() => confirmMerge(suggestion)}>
+                <Icon name="check" size={14} />Same student…
+              </button>
+            </span>
           </li>
         {/each}
       </ul>
       {#if !account.rosterMergeSeen}
-        <div><button class="btn btn-small" onclick={dismissRosterMerge}>The rest are different students</button></div>
+        <div><button class="btn btn-small" onclick={differentStudents}>The rest are different students</button></div>
       {/if}
+    </section>
+  {/if}
+
+  {#if recentMerges.length}
+    <section class="card" aria-labelledby="merged-title">
+      <h2 id="merged-title">Merged students</h2>
+      <ul class="merges">
+        {#each recentMerges as merge (merge.id)}
+          <li>
+            <span>
+              <strong>{nameOf(merge.drop)}</strong> <span class="muted">into</span> <strong>{nameOf(merge.keep)}</strong>
+              <span class="muted small">· {shortDate(merge.at)}</span>
+            </span>
+            <button class="btn btn-small" onclick={() => undoMerge(merge.id)}><Icon name="history" size={14} />Undo</button>
+          </li>
+        {/each}
+      </ul>
     </section>
   {/if}
 
@@ -177,6 +216,49 @@
   </section>
 </div>
 
+{#if confirming}
+  {@const pair = confirming}
+  {@const pinsDiffer = !!pair.keep.pin && !!pair.drop.pin && pair.keep.pin !== pair.drop.pin}
+  <Modal onClose={() => (confirming = null)} labelledby="confirm-merge-title">
+    <div class="dialog" style="width:min(560px,100%)">
+      <h2 id="confirm-merge-title">Are these the same student?</h2>
+      <p class="muted small">Merging can be undone from this page.</p>
+      <div class="pair">
+        {#each [{ student: pair.keep, classes: pair.keepClasses }, { student: pair.drop, classes: pair.dropClasses }] as side (side.student.id)}
+          <div class="side">
+            <strong>{nameOf(side.student)}</strong>
+            {#if fullName(side.student)}<span>{fullName(side.student)}</span>{:else}<span class="muted small">Full name not known</span>{/if}
+            <span class="muted small">{side.classes.join(', ') || 'No class now'}</span>
+            <span class="muted small">PIN {side.student.pin ?? 'none'} · {passCount(side.student.id)} passes</span>
+          </div>
+        {/each}
+      </div>
+      {#if pinsDiffer}
+        <fieldset class="pin-choice">
+          <legend>They have different PINs. Which one should they keep?</legend>
+          <label class="check"><input type="radio" bind:group={pinFrom} value={pair.keep.id} />{pair.keep.pin} ({pair.keepClasses.join(', ') || 'no class'})</label>
+          <label class="check"><input type="radio" bind:group={pinFrom} value={pair.drop.id} />{pair.drop.pin} ({pair.dropClasses.join(', ') || 'no class'})</label>
+        </fieldset>
+      {/if}
+      {#if pair.keep.alwaysGo || pair.drop.alwaysGo}
+        <p class="muted small">The merged student can always go, since one of them could.</p>
+      {:else if pair.keep.exempt || pair.drop.exempt}
+        <p class="muted small">The merged student is exempt from the Pass Allowance, since one of them was.</p>
+      {/if}
+      <div class="dialog-actions">
+        <button class="btn" onclick={() => (confirming = null)}>Cancel</button>
+        <button
+          class="btn btn-primary"
+          onclick={() => {
+            mergeStudents(pair.keep.id, pair.drop.id, pinFrom);
+            confirming = null;
+          }}>Merge them</button
+        >
+      </div>
+    </div>
+  </Modal>
+{/if}
+
 {#if editing}
   <EditStudentDialog student={editing} onClose={closeEditor} />
 {/if}
@@ -215,5 +297,33 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+  }
+
+  .pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .side {
+    display: grid;
+    gap: 3px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .pin-choice {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .pin-choice legend {
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 700;
   }
 </style>

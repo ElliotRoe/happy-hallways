@@ -154,6 +154,10 @@ export const news: News[] = [
         text: 'Requests and overdue students sit in the Needs you panel in the corner of every page. From Home you can add a student to a line, take one out, or clear it.',
       },
       {
+        title: 'Your data is safer',
+        text: "Happy Hallways now keeps a copy of your data from before this update, and if it ever can't read what's saved, it stops and helps you send it to us instead of starting over. Merging two students asks first and can be undone. Students without a PIN are never asked for one, and new PINs are made only for new students or when you turn PINs on.",
+      },
+      {
         title: 'Smaller changes',
         text: "Kiosk names are in A to Z order and the kiosk stays awake. A sound plays when it's a student's turn, and you can turn on a chime for overdue passes in Pass Options. Drag destinations to reorder them. Each class has Students, PINs and Settings tabs, and History and Settings are under More in the sidebar. We now say “take a pass” and “come back”.",
       },

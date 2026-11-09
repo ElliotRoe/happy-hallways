@@ -279,7 +279,8 @@ export type Kiosk =
 
 /** Everything the teacher's laptop holds. A Backup is exactly this, written to a file. */
 export type Account = {
-  version: 1;
+  /** 1 before the Account moved to its own key; 2 since. A later version may raise it. */
+  version: number;
   /** The fixed address a paired kiosk uses to find this laptop again. */
   laptopPeerId: string;
   /** Every student the teacher teaches, each once. See docs/adr/0015. */
@@ -334,6 +335,12 @@ export type Account = {
   attendance: AttendanceMark[];
   /** Attendance for every class, while the teacher has it on (one setting for now). See docs/adr/0020. */
   attendanceRules?: AttendanceOptions;
+  /** Students merged away, each to the student they became, so a kiosk that missed the merge can't bring them back. */
+  mergedIds?: Record<string, string>;
+  /** Pairs the teacher said are different students ("a|b", sorted), so they're never offered again. */
+  dismissedMerges?: string[];
+  /** Recent merges, newest last, each with what's needed to undo it. */
+  merges?: MergeRecord[];
   lastExportedAt?: string;
 };
 
@@ -348,6 +355,26 @@ export type Room = { code: string; classId: string; startedAt: string };
  * A student's own device made to act as them on the Student link. The device
  * keeps only the token, a random secret that means nothing anywhere else.
  */
+/** One merge of two students into one, kept so the teacher can undo it. */
+export type MergeRecord = {
+  id: string;
+  at: string;
+  keep: Student;
+  drop: Student;
+  /** Where the merged-away student was a member, as they were. */
+  memberships: { classId: string; member: Member }[];
+  /** The classes the kept student was in before the merge. */
+  keepClassIds: string[];
+  passIds: string[];
+  requestIds: string[];
+  deniedIds: string[];
+  attendanceIds: string[];
+  /** Marks of the merged-away student dropped because the kept one had a mark that day. */
+  removedMarks: AttendanceMark[];
+  /** Claims of the merged-away student, ended by the merge. */
+  removedClaims: Claim[];
+};
+
 export type Claim = { token: string; studentId: string; claimedAt: string };
 
 /** A class as the kiosk sees it: current students only, names already composed. */
@@ -375,6 +402,12 @@ export type CountedPass = { id: string; classId: string; studentId: string; outA
  * kiosk only shows this and asks. See docs/adr/0014.
  */
 export type DoorSetup = {
+  /**
+   * What the teacher's computer understands from a kiosk. Missing from a
+   * laptop on a version before kiosks asked it for everything; such a kiosk
+   * then only records returns and arrivals, as if offline, until it reloads.
+   */
+  protocol?: number;
   classes: DoorClass[];
   /**
    * With a Class Limit, each destination's `limit` is sent as the Class Limit

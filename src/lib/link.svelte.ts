@@ -3,6 +3,7 @@ import {
   account,
   doorSetup,
   forgetReplacedKiosk,
+  keptStudentId,
   markKioskSeen,
   onReload,
   onSave,
@@ -192,7 +193,9 @@ function acceptCurrent(connection: DataConnection) {
     const message = data as KioskMessage;
     markKioskSeen();
     if (message.type === 'act') {
-      perform(message.action, (notice, seconds) => send(connection, { type: 'notice', notice, seconds }));
+      // A kiosk that hasn't heard about a merge may still tap the merged-away student.
+      const action = 'studentId' in message.action ? { ...message.action, studentId: keptStudentId(message.action.studentId) } : message.action;
+      perform(action, (notice, seconds) => send(connection, { type: 'notice', notice, seconds }));
     }
     if (message.type === 'returns') {
       receiveReturns(message.returns);

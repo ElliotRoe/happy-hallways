@@ -8,6 +8,8 @@ import { blankSchedule, clockOf, noPassAt, scheduledClassAt, withRulesOnPeriods 
 import { arrivalStatus, periodFor, today } from './attendance';
 import type {
   ClassVisibility,
+  Member,
+  MergeRecord,
   Account,
   ActiveClass,
   AttendanceMark,
@@ -33,11 +35,22 @@ import { randomPin } from './pins';
  * The teacher's whole Account, kept in this browser's local storage. There is
  * no server: this object is the record. See docs/adr/0005.
  */
-const storageKey = 'hallway.account';
+/**
+ * Where the Account is kept. This version keeps it under its own key, so a
+ * tab still running an older version (which reads and writes `legacyKey`)
+ * never reads data it can't understand, or saves an older shape over it. The
+ * old key is left untouched, as it was, as a way back. See docs/adr/0005.
+ */
+const storageKey = 'hallway.account.v2';
+const legacyKey = 'hallway.account';
+/** The shape of the saved Account, so a later version can tell older or newer data. */
+export const accountVersion = 2;
+/** What this version's teacher's computer understands from a kiosk: 2 is a kiosk that asks it for everything (docs/adr/0014). */
+export const doorProtocol = 2;
 
 function blankAccount(): Account {
   return {
-    version: 1,
+    version: accountVersion,
     laptopPeerId: `hallway-${newId()}`,
     roster: [],
     classes: [],
@@ -209,14 +222,41 @@ const fromOlderVersions = {
   currentScheduleId: undefined,
 };
 
+/**
+ * Set when the saved Account couldn't be read. Nothing is saved over it then:
+ * the teacher sees a screen to download it and write to support, and a copy is
+ * kept under its own key in case anything goes wrong after.
+ */
+export const unreadable = $state({ raw: null as string | null, error: '' });
+
+/** The saved Account, from this version's key, or the older one before this version has saved. */
+function savedText(): string | null {
+  return localStorage.getItem(storageKey) ?? localStorage.getItem(legacyKey);
+}
+
 function load(): Account {
+  let saved: string | null = null;
   try {
-    const saved = localStorage.getItem(storageKey);
-    if (saved) return upgrade({ ...blankAccount(), ...fromOlderVersions, ...JSON.parse(saved) });
+    saved = savedText();
   } catch {
-    // Storage blocked or unreadable: start empty rather than not at all.
+    // Storage blocked: start empty rather than not at all. Saving will fail the same way, so nothing is overwritten.
+    return blankAccount();
   }
-  return blankAccount();
+  if (!saved) return blankAccount();
+  try {
+    const account = upgrade({ ...blankAccount(), ...fromOlderVersions, ...JSON.parse(saved) });
+    account.version = accountVersion;
+    return account;
+  } catch (error) {
+    unreadable.raw = saved;
+    unreadable.error = error instanceof Error ? error.message : String(error);
+    try {
+      localStorage.setItem(`hallway.account.unreadable.${Date.now()}`, saved);
+    } catch {
+      // No room for a copy; the original is still where it was, since nothing saves over it.
+    }
+    return blankAccount();
+  }
 }
 
 export const account: Account = $state(load());
@@ -227,8 +267,15 @@ export function onSave(listener: () => void) {
   afterSave.push(listener);
 }
 
-function save() {
+/** Writes the Account, unless what was saved couldn't be read: then nothing is ever written over it. */
+function write() {
+  if (unreadable.raw !== null) return false;
   localStorage.setItem(storageKey, JSON.stringify(account));
+  return true;
+}
+
+function save() {
+  if (!write()) return;
   for (const listener of afterSave) listener();
 }
 
@@ -245,7 +292,9 @@ export function onReload(listener: () => void) {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
-    if (event.key !== storageKey || event.newValue === null) return;
+    // Before this version has saved, a tab on the older version may still change the older key.
+    const watched = event.key === storageKey || (event.key === legacyKey && localStorage.getItem(storageKey) === null);
+    if (!watched || event.newValue === null || unreadable.raw !== null) return;
     const fresh = load();
     for (const key of Object.keys(account)) if (!(key in fresh)) delete account[key as keyof Account];
     Object.assign(account, fresh);
@@ -630,31 +679,47 @@ export function rosterCandidates(classId: string): RosterCandidate[] {
     }));
 }
 
-export function applyImport(classId: string, plan: ImportPlan, removeIds: string[]) {
+/**
+ * Saves an import. A student who already has a PIN or a last name keeps it:
+ * the list only fills in what's missing, and a different PIN is used only for
+ * the students in `acceptPins`, whom the teacher confirmed.
+ */
+export function applyImport(classId: string, plan: ImportPlan, removeIds: string[], acceptPins: Set<string> = new Set()) {
   const cls = findClass(classId);
   if (!cls || plan.error) return;
+  const setPin = (student: Student, pin: string | undefined) => {
+    if (pin && (!student.pin || acceptPins.has(student.id))) student.pin = pin;
+  };
   for (const change of plan.matched) {
     const member = cls.members.find((each) => each.studentId === change.student.id);
     const student = findStudent(change.student.id);
     if (member) member.lastPrefix = change.lastPrefix;
     // Pasting a class list again fills in the full names of students imported before they were kept.
     if (student && change.lastName && !student.lastName) student.lastName = change.lastName;
-    if (student && change.pin) student.pin = change.pin;
+    if (student) setPin(student, change.pin);
   }
+  const joined = new Set(cls.members.map((member) => member.studentId));
+  const newStudentIds = new Set<string>();
   for (const entry of plan.added) {
     let student = entry.rosterMatch ? findStudent(entry.rosterMatch.studentId) : undefined;
+    // Never two places in one class for one student.
+    if (student && joined.has(student.id)) student = undefined;
     if (student) {
       if (entry.lastName && !student.lastName) student.lastName = entry.lastName;
+      setPin(student, entry.pin);
     } else {
       student = { id: newId(), firstName: entry.firstName };
       if (entry.lastName) student.lastName = entry.lastName;
+      if (entry.pin) student.pin = entry.pin;
       account.roster.push(student);
+      newStudentIds.add(student.id);
     }
-    if (entry.pin) student.pin = entry.pin;
+    joined.add(student.id);
     cls.members.push({ studentId: student.id, lastPrefix: entry.lastPrefix, status: 'current' });
   }
   for (const id of removeIds) removeStudentFrom(cls, id);
-  if (account.studentPins) giveEveryonePins();
+  // Only students new to the Roster get a PIN; students who had none before stay without one until the teacher asks.
+  if (account.studentPins) giveEveryonePins(newStudentIds);
   save();
 }
 
@@ -662,10 +727,10 @@ export function applyImport(classId: string, plan: ImportPlan, removeIds: string
  * Hands a random PIN to every student on the Roster who has none, unique on
  * the Roster and never the teacher's.
  */
-function giveEveryonePins() {
+function giveEveryonePins(only?: Set<string>) {
   const taken = new Set([account.pin, ...account.roster.flatMap((student) => (student.pin ? [student.pin] : []))]);
   for (const student of account.roster) {
-    if (student.pin) continue;
+    if (student.pin || (only && !only.has(student.id))) continue;
     student.pin = randomPin(taken);
     taken.add(student.pin);
   }
@@ -716,7 +781,10 @@ export function renameStudent(classId: string, studentId: string, firstName: str
 function removeStudentFrom(cls: Class, studentId: string) {
   const open = account.passes.filter((pass) => pass.studentId === studentId && pass.classId === cls.id && !pass.inAt);
   mergeInto(account.passes, open.map((pass) => endUnseen(pass, 'removed')));
-  const hasHistory = account.passes.some((pass) => pass.studentId === studentId && pass.classId === cls.id);
+  // Passes and Attendance are both history: a student with either stays, as a former student.
+  const hasHistory =
+    account.passes.some((pass) => pass.studentId === studentId && pass.classId === cls.id) ||
+    account.attendance.some((mark) => mark.studentId === studentId && mark.classId === cls.id);
   if (hasHistory) {
     const member = cls.members.find((each) => each.studentId === studentId);
     if (member) member.status = 'former';
@@ -726,12 +794,13 @@ function removeStudentFrom(cls: Class, studentId: string) {
   forgetUnusedStudents();
 }
 
-/** A student in no class, with no passes anywhere, leaves the Roster. */
+/** A student in no class, with no passes or Attendance anywhere, leaves the Roster. */
 function forgetUnusedStudents() {
   account.roster = account.roster.filter(
     (student) =>
       account.classes.some((cls) => cls.members.some((member) => member.studentId === student.id)) ||
-      account.passes.some((pass) => pass.studentId === student.id),
+      account.passes.some((pass) => pass.studentId === student.id) ||
+      account.attendance.some((mark) => mark.studentId === student.id),
   );
 }
 
@@ -763,7 +832,7 @@ export function restoreStudent(classId: string, studentId: string) {
   const member = memberOf(classId, studentId);
   if (!cls || !member) return;
   member.status = 'current';
-  if (account.studentPins) giveEveryonePins();
+  if (account.studentPins) giveEveryonePins(new Set([studentId]));
   save();
 }
 
@@ -772,25 +841,119 @@ export function restoreStudent(classId: string, studentId: string) {
  * passes, place in a Line, Requests) becomes `keepId`'s. Only offered for
  * students never in the same class. See docs/adr/0015.
  */
-export function mergeStudents(keepId: string, dropId: string) {
+/**
+ * Two students who are one child become one: the kept student takes the other's
+ * classes, passes, Line spots, Requests, Attendance and Claims. `pinFrom` says
+ * whose PIN to keep when both have one. The merge is recorded so it can be
+ * undone, and the merged-away id is remembered so a kiosk that missed it can't
+ * bring that student back.
+ */
+export function mergeStudents(keepId: string, dropId: string, pinFrom: string = keepId) {
   const keep = findStudent(keepId);
   const drop = findStudent(dropId);
   if (!keep || !drop || keepId === dropId) return;
+  const record: MergeRecord = {
+    id: newId(),
+    at: now(),
+    keep: $state.snapshot(keep) as Student,
+    drop: $state.snapshot(drop) as Student,
+    memberships: [],
+    keepClassIds: account.classes.filter((cls) => cls.members.some((each) => each.studentId === keepId)).map((cls) => cls.id),
+    passIds: [],
+    requestIds: [],
+    deniedIds: [],
+    attendanceIds: [],
+    removedMarks: [],
+    removedClaims: [],
+  };
   for (const cls of account.classes) {
-    if (cls.members.some((member) => member.studentId === keepId)) {
-      cls.members = cls.members.filter((member) => member.studentId !== dropId);
+    const member = cls.members.find((each) => each.studentId === dropId);
+    if (!member) continue;
+    record.memberships.push({ classId: cls.id, member: $state.snapshot(member) as Member });
+    if (cls.members.some((each) => each.studentId === keepId)) cls.members = cls.members.filter((each) => each !== member);
+    else member.studentId = keepId;
+  }
+  const moved = now();
+  for (const pass of account.passes) {
+    if (pass.studentId !== dropId) continue;
+    pass.studentId = keepId;
+    pass.updatedAt = moved;
+    record.passIds.push(pass.id);
+  }
+  // The Line lasts minutes, so a spot just moves to the kept student and isn't undone.
+  for (const spot of account.line) if (spot.studentId === dropId) spot.studentId = keepId;
+  for (const each of account.requests) if (each.studentId === dropId) (each.studentId = keepId), record.requestIds.push(each.id);
+  for (const each of account.deniedRequests) if (each.studentId === dropId) (each.studentId = keepId), record.deniedIds.push(each.id);
+  // One mark per class and day: where the kept student already has one, theirs stands.
+  for (const mark of [...account.attendance]) {
+    if (mark.studentId !== dropId) continue;
+    if (attendanceMark(mark.classId, keepId, mark.day)) {
+      record.removedMarks.push($state.snapshot(mark) as AttendanceMark);
+      account.attendance = account.attendance.filter((each) => each !== mark);
     } else {
-      for (const member of cls.members) if (member.studentId === dropId) member.studentId = keepId;
+      mark.studentId = keepId;
+      mark.updatedAt = moved;
+      record.attendanceIds.push(mark.id);
     }
   }
-  for (const each of [...account.passes, ...account.line, ...account.requests, ...account.deniedRequests]) {
-    if (each.studentId === dropId) each.studentId = keepId;
-  }
+  // One device per student: the merged-away student's devices stop acting for anyone.
+  record.removedClaims = account.claims.filter((claim) => claim.studentId === dropId).map((claim) => ({ ...claim }));
+  account.claims = account.claims.filter((claim) => claim.studentId !== dropId);
   keep.lastName ??= drop.lastName;
-  keep.pin ??= drop.pin;
+  if (pinFrom === dropId && drop.pin) keep.pin = drop.pin;
+  else keep.pin ??= drop.pin;
   if (drop.exempt) keep.exempt = true;
   if (drop.alwaysGo) keep.alwaysGo = true;
   account.roster = account.roster.filter((student) => student.id !== dropId);
+  account.mergedIds = { ...account.mergedIds, [dropId]: keepId };
+  account.merges = [...(account.merges ?? []), record].slice(-20);
+  save();
+}
+
+/** Puts two merged students back as they were. Anything that happened since stays with the kept student. */
+export function undoMerge(recordId: string) {
+  const record = account.merges?.find((each) => each.id === recordId);
+  if (!record) return;
+  const keep = findStudent(record.keep.id);
+  if (keep) Object.assign(keep, { lastName: record.keep.lastName, pin: record.keep.pin, exempt: record.keep.exempt, alwaysGo: record.keep.alwaysGo });
+  if (!findStudent(record.drop.id)) account.roster.push(record.drop);
+  for (const { classId, member } of record.memberships) {
+    const cls = findClass(classId);
+    if (!cls) continue;
+    if (record.keepClassIds.includes(classId)) {
+      // Both were in this class; the merged-away student's place was removed, so it comes back.
+      cls.members.push(member);
+    } else {
+      // Only the merged-away student was; the kept student's place here was theirs.
+      const theirs = cls.members.find((each) => each.studentId === record.keep.id);
+      if (theirs) Object.assign(theirs, member);
+      else cls.members.push(member);
+    }
+  }
+  const back = (ids: string[], list: { id: string; studentId: string; updatedAt?: string }[]) => {
+    for (const each of list) {
+      if (!ids.includes(each.id)) continue;
+      each.studentId = record.drop.id;
+      if ('updatedAt' in each) each.updatedAt = now();
+    }
+  };
+  back(record.passIds, account.passes);
+  back(record.requestIds, account.requests);
+  back(record.deniedIds, account.deniedRequests);
+  back(record.attendanceIds, account.attendance);
+  account.attendance.push(...record.removedMarks);
+  if (account.mergedIds) {
+    const { [record.drop.id]: _undone, ...rest } = account.mergedIds;
+    account.mergedIds = rest;
+  }
+  account.merges = account.merges!.filter((each) => each.id !== recordId);
+  save();
+}
+
+/** The teacher said these two are different students: never offer them again. */
+export function dismissMerge(firstId: string, secondId: string) {
+  const key = [firstId, secondId].sort().join('|');
+  account.dismissedMerges = [...new Set([...(account.dismissedMerges ?? []), key])];
   save();
 }
 
@@ -904,7 +1067,12 @@ export function recordArrival(classId: string, studentId: string, at = now()) {
 
 export function receiveArrivals(arrivals: OfflineArrival[]) {
   let changed = false;
-  for (const each of arrivals) changed = arrive(each.classId, each.studentId, each.at, false) || changed;
+  for (const each of arrivals) {
+    const studentId = keptStudentId(each.studentId);
+    // A mark the teacher set by hand stands over a kiosk's late hand-over.
+    if (attendanceMark(each.classId, studentId, today(each.at))?.corrected) continue;
+    changed = arrive(each.classId, studentId, each.at, false) || changed;
+  }
   if (changed) save();
 }
 
@@ -1021,8 +1189,48 @@ export function keepAttendance() {
 
 /** Every pass the door starts or ends is recorded here, on the teacher's computer. */
 export function receivePasses(passes: Pass[]) {
-  mergeInto(account.passes, passes);
+  const before = new Map(account.passes.map((pass) => [pass.id, $state.snapshot(pass) as Pass]));
+  // A kiosk that hasn't heard about a merge still has the merged-away student.
+  mergeInto(account.passes, passes.map((pass) => ({ ...pass, studentId: keptStudentId(pass.studentId) })));
+  for (const pass of account.passes) {
+    const mine = before.get(pass.id);
+    if (mine) keepTeacherEdits(pass, mine);
+  }
   save();
+}
+
+/**
+ * What only the teacher changes, on this computer, always beats a kiosk's
+ * copy of the same pass, however new: their note, a cancel, a correction, and
+ * which student it belongs to after a merge.
+ */
+function keepTeacherEdits(pass: Pass, mine: Pass) {
+  if (mine.note !== undefined) pass.note = mine.note;
+  else delete pass.note;
+  pass.studentId = mine.studentId;
+  pass.studentName = mine.studentName;
+  if (mine.cancelledBy) {
+    pass.cancelledBy = mine.cancelledBy;
+    pass.endedBeforeCancel = mine.endedBeforeCancel;
+    pass.endedBy = mine.endedBy;
+    pass.inAt = mine.inAt;
+  }
+  if (mine.corrected) {
+    pass.corrected = true;
+    pass.outAt = mine.outAt;
+    if (mine.inAt) {
+      pass.inAt = mine.inAt;
+      pass.endedBy = mine.endedBy;
+    }
+  }
+  if (mine.updatedAt > pass.updatedAt) pass.updatedAt = mine.updatedAt;
+}
+
+/** The student a merged-away student became, or the same student. */
+export function keptStudentId(studentId: string) {
+  let id = studentId;
+  for (let hops = 0; account.mergedIds?.[id] && hops < 10; hops++) id = account.mergedIds[id];
+  return id;
 }
 
 /**
@@ -1033,6 +1241,8 @@ export function receiveReturns(returns: OfflineReturn[]) {
   for (const back of returns) {
     const pass = account.passes.find((each) => each.id === back.passId);
     if (!pass || (pass.inAt && pass.inAt <= back.inAt)) continue;
+    // The teacher cancelled or corrected it here; that stands. The kiosk is still told it was received.
+    if (pass.cancelledBy || pass.corrected) continue;
     Object.assign(pass, { inAt: back.inAt, endedBy: 'student', updatedAt: now() });
   }
   save();
@@ -1208,7 +1418,7 @@ export function removeKiosk() {
 export function markKioskSeen() {
   if (account.kiosk?.kind !== 'device') return;
   account.kiosk.lastSeenAt = now();
-  localStorage.setItem(storageKey, JSON.stringify(account));
+  write();
 }
 
 export function setNetworkBlocked(blocked: boolean) {
@@ -1308,6 +1518,7 @@ export function doorSetup(): DoorSetup {
   const since = today.toISOString();
   const minuteAgo = new Date(Date.now() - 60_000).toISOString();
   return $state.snapshot({
+    protocol: doorProtocol,
     classes: account.classes.map((cls) => ({
       id: cls.id,
       name: cls.name,
@@ -1404,11 +1615,25 @@ export function exportAccount() {
  * Replaces everything in this browser with an exported file, including the
  * kiosk pairing, so the teacher is back exactly where they were.
  */
-export function importAccount(text: string) {
+export function importAccount(text: string, own = true) {
   const parsed = JSON.parse(text);
-  if (parsed?.app !== 'hallway' || parsed.version !== 1 || !Array.isArray(parsed.classes)) {
+  if (parsed?.app !== 'hallway' || typeof parsed.version !== 'number' || !Array.isArray(parsed.classes)) {
     throw new Error('That file is not a Happy Hallways backup.');
   }
+  if (parsed.version > accountVersion) {
+    throw new Error('That backup was made by a newer version of Happy Hallways. Reload this page to get the newest version, then try again.');
+  }
   delete parsed.app;
-  localStorage.setItem(storageKey, JSON.stringify(upgrade({ ...blankAccount(), ...fromOlderVersions, ...parsed })));
+  const restored = upgrade({ ...blankAccount(), ...fromOlderVersions, ...parsed });
+  restored.version = accountVersion;
+  if (!own) {
+    // Someone else's backup: their classes and passes, but not their kiosk, laptop address, Room or students' devices.
+    restored.laptopPeerId = `hallway-${newId()}`;
+    restored.kiosk = null;
+    restored.replacedKiosks = [];
+    restored.studentLink = restored.studentLink ? { open: false, room: null } : null;
+    restored.claims = [];
+  }
+  unreadable.raw = null;
+  localStorage.setItem(storageKey, JSON.stringify(restored));
 }

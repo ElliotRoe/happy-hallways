@@ -20,14 +20,14 @@ test("a returning teacher sees today's update once; a brand-new one never does",
 
   // A teacher who had seen every update before today's.
   await page.evaluate(() => {
-    const saved = JSON.parse(localStorage.getItem('hallway.account')!);
+    const saved = JSON.parse(localStorage.getItem('hallway.account.v2')!);
     saved.seenPopups = {
       '2026-10-destination-limits': 'x',
       '2026-10-schedule': 'x',
       '2026-10-home': 'x',
       '2026-10-13-class-limit-pins-student-link': 'x',
     };
-    localStorage.setItem('hallway.account', JSON.stringify(saved));
+    localStorage.setItem('hallway.account.v2', JSON.stringify(saved));
   });
 
   // Arriving with a dialog open, the update waits until it closes.
@@ -61,9 +61,9 @@ test("a returning teacher sees today's update once; a brand-new one never does",
 
   // Never on the kiosk.
   await page.evaluate(() => {
-    const saved = JSON.parse(localStorage.getItem('hallway.account')!);
+    const saved = JSON.parse(localStorage.getItem('hallway.account.v2')!);
     saved.seenPopups = {};
-    localStorage.setItem('hallway.account', JSON.stringify(saved));
+    localStorage.setItem('hallway.account.v2', JSON.stringify(saved));
   });
   await page.goto('/door');
   await page.waitForTimeout(1000);
@@ -91,7 +91,7 @@ test('/?whats-new previews the newest update without counting it as seen', async
   await expect(page).toHaveURL(/\/$/);
   await dialog.getByRole('button', { name: 'Got it' }).click();
   await expect(dialog).toBeHidden();
-  const seen = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account')!).seenPopups['2026-11-whats-new']);
+  const seen = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account.v2')!).seenPopups['2026-11-whats-new']);
   // Seen already as a brand-new teacher; the preview doesn't change when.
   expect(typeof seen).toBe('string');
 });

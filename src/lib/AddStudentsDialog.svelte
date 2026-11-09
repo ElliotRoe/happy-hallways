@@ -13,6 +13,8 @@
   let reviewing = $state(null as ImportPlan | null);
   /** The Roster matches the teacher says are the same student. All of them, unless they untick one. */
   let confirmed = $state(new Set<string>());
+  /** Students whose PIN the teacher agreed to change to the one in the list. None, unless they tick one. */
+  let acceptPins = $state(new Set<string>());
 
   /**
    * Adds everyone new in the list. Students already in the class are kept as
@@ -26,7 +28,8 @@
       return;
     }
     const matches = plan.added.filter((entry) => entry.rosterMatch);
-    if (matches.length) {
+    if (matches.length || plan.pinChanges.length) {
+      acceptPins = new Set();
       confirmed = new Set(matches.map((entry) => entry.rosterMatch!.studentId));
       reviewing = plan;
       return;
@@ -35,13 +38,20 @@
     onClose();
   }
 
+  function togglePin(studentId: string, on: boolean) {
+    const next = new Set(acceptPins);
+    if (on) next.add(studentId);
+    else next.delete(studentId);
+    acceptPins = next;
+  }
+
   /** Students the teacher didn't confirm join as new students instead. */
   function addReviewed() {
     if (!reviewing) return;
     const added = reviewing.added.map((entry) =>
       entry.rosterMatch && !confirmed.has(entry.rosterMatch.studentId) ? { ...entry, rosterMatch: undefined } : entry,
     );
-    applyImport(cls.id, { ...reviewing, added }, []);
+    applyImport(cls.id, { ...reviewing, added }, [], acceptPins);
     onClose();
   }
 
@@ -70,8 +80,10 @@
       <button class="btn btn-small btn-quiet" onclick={onClose} aria-label="Close"><Icon name="x" size={16} /></button>
     </div>
     {#if reviewing}
+      {#if reviewing.added.some((entry) => entry.rosterMatch)}
       <p>Some of these students are already in your other classes. Is each one the same student?</p>
       <p class="muted small">The same student shares one PIN, one Pass Allowance and one history across your classes.</p>
+      {/if}
       <ul class="matches">
         {#each reviewing.added.filter((entry) => entry.rosterMatch) as entry (entry.rosterMatch!.studentId)}
           {@const match = entry.rosterMatch!}
@@ -89,6 +101,19 @@
           </li>
         {/each}
       </ul>
+      {#if reviewing.pinChanges.length}
+        <p>Your list has a different PIN for some students who already have one. Change theirs?</p>
+        <ul class="matches">
+          {#each reviewing.pinChanges as change (change.studentId)}
+            <li>
+              <label class="check">
+                <input type="checkbox" checked={acceptPins.has(change.studentId)} onchange={(event) => togglePin(change.studentId, event.currentTarget.checked)} />
+                <span>Change <strong>{change.name}</strong>'s PIN from {change.from} to {change.to}</span>
+              </label>
+            </li>
+          {/each}
+        </ul>
+      {/if}
       <div class="row">
         <button class="btn btn-primary" onclick={addReviewed}>Add students</button>
         <button class="btn" onclick={() => (reviewing = null)}>Back</button>

@@ -780,7 +780,7 @@ test("a returning teacher sees what's changed once; a new one never does", async
   // A teacher whose saved data is from before both updates: one limit for every
   // destination, and no-pass times set on the class.
   await page.evaluate(() => {
-    const saved = JSON.parse(localStorage.getItem('hallway.account')!);
+    const saved = JSON.parse(localStorage.getItem('hallway.account.v2')!);
     delete saved.seenPopups;
     delete saved.schedules;
     delete saved.currentScheduleId;
@@ -788,7 +788,7 @@ test("a returning teacher sees what's changed once; a new one never does", async
     for (const destination of saved.destinations) delete destination.limit;
     saved.destinations.push({ id: 'nurse', label: 'Nurse', minutes: 15, color: 'pink', icon: 'stethoscope' });
     saved.passLimit = 2;
-    localStorage.setItem('hallway.account', JSON.stringify(saved));
+    localStorage.setItem('hallway.account.v2', JSON.stringify(saved));
   });
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Thank you for all your feedback' })).toBeVisible();
@@ -811,10 +811,10 @@ test("a returning teacher sees what's changed once; a new one never does", async
 
   // A teacher who had already seen the first two updates, on the version that remembered only the newest, sees just the latest.
   await page.evaluate(() => {
-    const saved = JSON.parse(localStorage.getItem('hallway.account')!);
+    const saved = JSON.parse(localStorage.getItem('hallway.account.v2')!);
     delete saved.seenPopups;
     saved.seenUpdate = '2026-10-schedule';
-    localStorage.setItem('hallway.account', JSON.stringify(saved));
+    localStorage.setItem('hallway.account.v2', JSON.stringify(saved));
   });
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Everything for the day is on Home' })).toBeVisible();
@@ -868,7 +868,7 @@ test("a kiosk that can't reach the teacher's computer lets students sign back in
   await page.getByRole('button', { name: /Jordan E\./ }).click();
   await expect(page.getByText('Welcome back, Jordan E.')).toBeVisible();
   await expect(page.getByText(/1 tap saved here/)).toBeVisible();
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.door')!).returns);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.door.v2')!).returns);
   expect(saved).toHaveLength(1);
 });
 
@@ -1022,7 +1022,7 @@ test('a teacher with no schedules draws one: a period appears as they drag, and 
 test("a schedule's old first and last minutes rules move onto its periods", async ({ page }) => {
   await createClassWithRoster(page, 'Period 1');
   await page.evaluate(() => {
-    const saved = JSON.parse(localStorage.getItem('hallway.account')!);
+    const saved = JSON.parse(localStorage.getItem('hallway.account.v2')!);
     const classId = saved.classes[0].id;
     saved.schedules = [
       {
@@ -1037,7 +1037,7 @@ test("a schedule's old first and last minutes rules move onto its periods", asyn
       },
     ];
     saved.currentScheduleId = 'old';
-    localStorage.setItem('hallway.account', JSON.stringify(saved));
+    localStorage.setItem('hallway.account.v2', JSON.stringify(saved));
   });
   await page.goto('/schedule/old');
   await page.locator('.grid .period .block-body').click();

@@ -50,7 +50,7 @@ test('an account from before the Roster keeps every student, and the teacher mer
       id, classId, studentId, studentName: 'Maya C.', destination: 'Bathroom', minutes: 5, outAt: at, inAt: at, endedBy: 'student', updatedAt: at,
     });
     localStorage.setItem(
-      'hallway.account',
+      'hallway.account.v2',
       JSON.stringify({
         version: 1,
         laptopPeerId: 'hallway-old',
@@ -80,14 +80,15 @@ test('an account from before the Roster keeps every student, and the teacher mer
   while (await page.getByRole('dialog').isVisible()) await page.keyboard.press('Escape');
   await page.getByRole('link', { name: 'Review' }).click();
   await expect(page.getByRole('heading', { name: 'These may be the same student in two classes' })).toBeVisible();
-  await page.getByRole('button', { name: 'Same student' }).click();
+  await page.getByRole('button', { name: 'Same student…' }).click();
+  await page.getByRole('dialog', { name: 'Are these the same student?' }).getByRole('button', { name: 'Merge them' }).click();
 
   await expect(page.getByRole('heading', { name: 'These may be the same student in two classes' })).toBeHidden();
   const maya = page.getByRole('row', { name: /Maya/ });
   await expect(maya).toHaveCount(1);
   await expect(maya).toContainText('Period 1, Period 2');
   await expect(maya).toContainText('Exempt');
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account')!));
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account.v2')!));
   expect(saved.roster).toHaveLength(1);
   expect(saved.roster[0].pin).toBe('1234');
   expect(new Set(saved.passes.map((pass: { studentId: string }) => pass.studentId))).toEqual(new Set([saved.roster[0].id]));

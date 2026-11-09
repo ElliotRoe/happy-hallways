@@ -29,6 +29,11 @@ export type ImportPlan = {
   matched: { student: ClassStudent; lastPrefix: string; lastName: string; pin?: string }[];
   /** In this class, but not in the pasted list. The teacher decides. */
   missing: ClassStudent[];
+  /**
+   * PINs in the list that differ from a PIN a student already has. Never
+   * applied unless the teacher says so: the student may already know theirs.
+   */
+  pinChanges: { studentId: string; name: string; from: string; to: string }[];
   /** Set when two students cannot be told apart. Nothing is saved when this is set. */
   error: string;
 };
@@ -206,7 +211,25 @@ export function planImport(text: string, existing: ClassStudent[], teacherPin = 
     }
   });
 
-  return { added, matched, missing, error: error || ambiguity || pinsError(current, matched, added, teacherPin) };
+  // Two pasted names that both seem to be the same Roster student: neither is, until the teacher says.
+  const matchCounts = new Map<string, number>();
+  for (const entry of added) if (entry.rosterMatch) matchCounts.set(entry.rosterMatch.studentId, (matchCounts.get(entry.rosterMatch.studentId) ?? 0) + 1);
+  for (const entry of added) if (entry.rosterMatch && matchCounts.get(entry.rosterMatch.studentId)! > 1) delete entry.rosterMatch;
+
+  const pinChanges: ImportPlan['pinChanges'] = [];
+  for (const change of matched) {
+    if (change.pin && change.student.pin && change.pin !== change.student.pin) {
+      pinChanges.push({ studentId: change.student.id, name: displayName(change.student), from: change.student.pin, to: change.pin });
+    }
+  }
+  for (const entry of added) {
+    const known = entry.rosterMatch && candidates.find((each) => each.student.id === entry.rosterMatch!.studentId)?.student;
+    if (known && entry.pin && known.pin && entry.pin !== known.pin) {
+      pinChanges.push({ studentId: known.id, name: `${entry.firstName} ${entry.lastName}`.trim(), from: known.pin, to: entry.pin });
+    }
+  }
+
+  return { added, matched, missing, pinChanges, error: error || ambiguity || pinsError(current, matched, added, teacherPin) };
 }
 
 /**

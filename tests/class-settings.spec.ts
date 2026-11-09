@@ -64,7 +64,7 @@ test("a class that took attendance before carries it over to the one setting", a
   await page.evaluate(() => {
     const at = new Date().toISOString();
     localStorage.setItem(
-      'hallway.account',
+      'hallway.account.v2',
       JSON.stringify({
         version: 1,
         laptopPeerId: 'hallway-migrate',

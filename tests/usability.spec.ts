@@ -17,7 +17,7 @@ async function setUp(page: Page, extra: object = {}) {
   await page.evaluate((extra) => {
     const at = new Date().toISOString();
     localStorage.setItem(
-      'hallway.account',
+      'hallway.account.v2',
       JSON.stringify({
         version: 1,
         laptopPeerId: 'hallway-usability',
@@ -165,9 +165,9 @@ test('a trip to a Private destination shows only as "Out" on the kiosk, but the 
 
   // The teacher still sees where.
   await page.evaluate(() => {
-    const account = JSON.parse(localStorage.getItem('hallway.account')!);
+    const account = JSON.parse(localStorage.getItem('hallway.account.v2')!);
     account.kiosk.locked = false;
-    localStorage.setItem('hallway.account', JSON.stringify(account));
+    localStorage.setItem('hallway.account.v2', JSON.stringify(account));
   });
   await page.goto('/');
   await expect(page.getByRole('row', { name: /Ana B\./ })).toContainText('Nurse');

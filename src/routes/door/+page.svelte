@@ -406,7 +406,10 @@
         <!-- Students can join this class on their own device with this code (docs/adr/0019). -->
         <div class="door-room"><RoomCode code={setup()!.room!.code} size="small" /></div>
       {/if}
-      {#if paired && door.status === 'live'}
+      {#if paired && door.status === 'live' && door.laptopOutdated}
+        <!-- An older version on the teacher's computer can't answer this kiosk; returns are still kept here. -->
+        <p class="connection"><span class="dot"></span>Your teacher's computer needs to reload Happy Hallways</p>
+      {:else if paired && door.status === 'live'}
         <p class="connection live"><span class="dot"></span>Connected</p>
       {:else if paired}
         <div class="connection">

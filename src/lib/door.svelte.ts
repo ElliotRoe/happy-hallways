@@ -59,14 +59,23 @@ type PairedDevice = {
 
 export type DoorNotice = DoorNoticeMessage;
 
-const storageKey = 'hallway.door';
+/**
+ * Where a paired kiosk keeps itself. This version uses its own key, so a tab
+ * still on an older version never reads (or overwrites) the new shape; the
+ * older key is read once and left as it was until the kiosk is unpaired.
+ */
+const storageKey = 'hallway.door.v2';
+const legacyKey = 'hallway.door';
+/** Saved kiosk data that couldn't be read: kept, and never removed or saved over. */
+let unreadableDevice = false;
 
 /** Older kiosks kept passes, the Line and Requests themselves; anything not handed over yet is still sent. */
 type SavedDevice = PairedDevice & { passes?: Pass[]; outbox?: string[] };
 
 function loadDevice(): PairedDevice | null {
+  let saved: string | null = null;
   try {
-    const saved = localStorage.getItem(storageKey);
+    saved = localStorage.getItem(storageKey) ?? localStorage.getItem(legacyKey);
     if (!saved) return null;
     const device: SavedDevice = JSON.parse(saved);
     device.setup = fromOlderLaptop(device.setup);
@@ -78,6 +87,14 @@ function loadDevice(): PairedDevice | null {
     delete device.outbox;
     return device;
   } catch {
+    if (saved) {
+      unreadableDevice = true;
+      try {
+        localStorage.setItem(`hallway.door.unreadable.${Date.now()}`, saved);
+      } catch {
+        // No room for a copy; the original stays where it was.
+      }
+    }
     return null;
   }
 }
@@ -87,6 +104,7 @@ function loadDevice(): PairedDevice | null {
  * refreshes) sends one Pass Limit for every destination. Read it the new way.
  */
 function fromOlderLaptop(setup: DoorSetup): DoorSetup {
+  setup.passes ??= [];
   for (const destination of setup.destinations) {
     if (destination.limit === undefined) destination.limit = setup.passLimit ?? 1;
   }
@@ -107,7 +125,14 @@ export const door = $state({
   notice: null as DoorNotice | null,
   /** Students the teacher just said no to, and when, so their name says so for a minute. */
   denied: {} as Record<string, number>,
+  /** The teacher's computer is on an older version that can't answer this kiosk, until it reloads. */
+  laptopOutdated: false,
 });
+
+/** Whether this kiosk can ask the teacher's computer right now: connected, and on a version that answers. */
+export function reachesTeacher() {
+  return door.status === 'live' && !door.laptopOutdated;
+}
 
 /** True when this browser is the teacher's laptop acting as its own kiosk. */
 export function isLocal() {
@@ -125,8 +150,13 @@ function inCharge() {
 }
 
 function saveDevice() {
+  if (unreadableDevice) return;
   if (door.device) localStorage.setItem(storageKey, JSON.stringify(door.device));
-  else localStorage.removeItem(storageKey);
+  else {
+    // Unpairing on purpose: the older copy goes too, so it can't come back as a kiosk.
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(legacyKey);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +187,11 @@ export function activeDoorClass() {
 }
 
 function allPasses(): Pass[] {
-  return inCharge() ? account.passes : (door.device?.setup.passes ?? []);
+  if (inCharge()) return account.passes;
+  const shown = door.device?.setup.passes ?? [];
+  // Passes an older version of this kiosk saved, not handed over yet: a student out on one can still come back.
+  const legacy = (door.device?.legacyPasses ?? []).filter((pass) => !shown.some((each) => each.id === pass.id));
+  return legacy.length ? [...shown, ...legacy] : shown;
 }
 
 function allLines(): LineSpot[] {
@@ -748,7 +782,7 @@ function act(action: DoorAction) {
     perform(action);
     return;
   }
-  if (door.status === 'live') {
+  if (reachesTeacher()) {
     send({ type: 'act', action });
     return;
   }
@@ -808,7 +842,7 @@ export function changeClass(classId: string | null) {
 
 /** Students can ask only from a kiosk the teacher's computer can hear. On the teacher's own computer, the PIN is the way past. */
 export function canAsk() {
-  return !!door.device && door.status === 'live';
+  return !!door.device && reachesTeacher();
 }
 
 /** On Schedule, the teacher's computer moves the door to whatever class the clock says. */
@@ -856,8 +890,9 @@ function arriveOffline(studentId: string) {
 }
 
 /** How many returns and Arrivals were recorded here that the teacher's computer hasn't heard about yet. */
+/** Everything this kiosk holds that the teacher's computer hasn't received yet, including passes from an older version. */
 export function waitingCount() {
-  return (door.device?.returns.length ?? 0) + (door.device?.arrivals?.length ?? 0);
+  return (door.device?.returns.length ?? 0) + (door.device?.arrivals?.length ?? 0) + (door.device?.legacyPasses?.length ?? 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -874,6 +909,7 @@ function send(message: KioskMessage) {
 
 /** Keeps every offline return showing as back until the teacher's computer has it. */
 function adoptSetup(device: PairedDevice, setup: DoorSetup) {
+  door.laptopOutdated = !setup.protocol;
   device.setup = fromOlderLaptop(setup);
   for (const back of device.returns) {
     const pass = device.setup.passes.find((each) => each.id === back.passId);
@@ -889,7 +925,8 @@ function adoptSetup(device: PairedDevice, setup: DoorSetup) {
   saveDevice();
 }
 
-function receive(message: LaptopMessage) {
+/** What the teacher's computer sends this kiosk. Exported for tests. */
+export function receive(message: LaptopMessage) {
   const device = door.device;
   if (!device) return;
   if (message.type === 'setup') adoptSetup(device, message.setup);

@@ -75,7 +75,7 @@ test('each class is a new Room with a new code, and every Claim ends with its Ro
   await page.evaluate(() => {
     const at = new Date(Date.now() - 60_000).toISOString();
     localStorage.setItem(
-      'hallway.account',
+      'hallway.account.v2',
       JSON.stringify({
         version: 1,
         laptopPeerId: 'hallway-claims',
@@ -113,7 +113,7 @@ test('each class is a new Room with a new code, and every Claim ends with its Ro
   await page.locator('.status-box').click();
   await page.getByRole('button', { name: /^Class on the kiosk:/ }).click();
   await page.getByRole('menuitemradio', { name: 'Period 2' }).click();
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account')!));
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account.v2')!));
   expect(saved.claims).toEqual([]);
   expect(saved.studentLink.room.classId).toBe('p2');
   expect(saved.studentLink.room.code).toMatch(/^\d{6}$/);

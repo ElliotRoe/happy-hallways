@@ -25,7 +25,7 @@ async function setUp(page: Page, minutesAgo: number, attendance: { graceMinutes:
   await page.evaluate(
     ({ start, end, startAt, attendance, extra }) => {
       localStorage.setItem(
-        'hallway.account',
+        'hallway.account.v2',
         JSON.stringify({
           version: 1,
           laptopPeerId: 'hallway-attendance',
@@ -70,14 +70,14 @@ async function setUp(page: Page, minutesAgo: number, attendance: { graceMinutes:
   );
 }
 
-const saved = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account')!));
+const saved = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('hallway.account.v2')!));
 
 /** Opening the kiosk screen locks this computer as the kiosk; the teacher's PIN would unlock it. */
 async function unlockAndGo(page: Page, path: string) {
   await page.evaluate(() => {
-    const account = JSON.parse(localStorage.getItem('hallway.account')!);
+    const account = JSON.parse(localStorage.getItem('hallway.account.v2')!);
     account.kiosk.locked = false;
-    localStorage.setItem('hallway.account', JSON.stringify(account));
+    localStorage.setItem('hallway.account.v2', JSON.stringify(account));
   });
   await page.goto(path);
 }
@@ -140,10 +140,10 @@ test('a student who never arrives is Absent and hidden from the door; the teache
 test('with Attendance off, the kiosk shows no arrival tap', async ({ page }) => {
   await setUp(page, 10, { graceMinutes: 0, absentAfterMinutes: 30 });
   await page.evaluate(() => {
-    const account = JSON.parse(localStorage.getItem('hallway.account')!);
+    const account = JSON.parse(localStorage.getItem('hallway.account.v2')!);
     delete account.classes[0].attendance;
     delete account.attendanceRules;
-    localStorage.setItem('hallway.account', JSON.stringify(account));
+    localStorage.setItem('hallway.account.v2', JSON.stringify(account));
   });
   await page.goto('/door');
   await expect(page.getByRole('button', { name: /Maya C\./ })).toContainText('In class');
@@ -172,7 +172,7 @@ test("a kiosk that can't reach the teacher's computer still records an Arrival, 
   await maya.click();
   await expect(page.getByText('Welcome, Maya C.')).toBeVisible();
   await expect(page.getByText(/1 tap saved here/)).toBeVisible();
-  const device = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.door')!));
+  const device = await page.evaluate(() => JSON.parse(localStorage.getItem('hallway.door.v2')!));
   expect(device.arrivals).toEqual([{ classId: 'p1', studentId: 'maya', at: expect.any(String) }]);
 });
 
