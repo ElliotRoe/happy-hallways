@@ -464,7 +464,13 @@
         {#if account.studentLink?.open && currentRoom()}
           <RoomCode code={currentRoom()!.code} size="small" />
           <div class="kiosk-actions">
-            <button class="btn btn-small" onclick={copyJoinLink}><Icon name={copied ? 'check' : 'copy'} size={14} />{copied ? 'Copied' : 'Copy link'}</button>
+            <!-- Just an icon, so the three buttons fit on one line. -->
+            <button
+              class="btn btn-small icon-only"
+              onclick={copyJoinLink}
+              aria-label={copied ? 'Copied' : 'Copy link'}
+              title={copied ? 'Copied' : 'Copy the join link'}><Icon name={copied ? 'check' : 'copy'} size={14} /></button
+            >
             <button class="btn btn-small" onclick={() => board?.requestFullscreen?.()}><Icon name="maximize" size={14} />Full screen</button>
             <button class="btn btn-small" onclick={popOutRoom}><Icon name="pop-out" size={14} />Pop out</button>
           </div>
@@ -508,6 +514,10 @@
 {/if}
 
 <style>
+  .icon-only {
+    padding-inline: 8px;
+  }
+
   .line-head {
     display: flex;
     align-items: center;
