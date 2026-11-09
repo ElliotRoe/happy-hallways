@@ -19,7 +19,7 @@
   /**
    * Student devices: students join each class's Room with its code, see how
    * things stand, and, once they've set up their device with their first name
-   * and PIN, sign out and back in from it. The code itself is on Home. See
+   * and PIN, take a pass and come back from it. The code itself is on Home. See
    * docs/adr/0012, 0016 and 0019.
    */
   const open = $derived(!!account.studentLink?.open);
@@ -52,9 +52,9 @@
   <header class="page-head">
     <div>
       <p class="eyebrow">Student devices</p>
-      <h1>Sign out from their seats</h1>
+      <h1>Hall passes from their seats</h1>
       <p class="muted">
-        Students join each class on their own Chromebook or phone with a code, and sign out and back in from it. With
+        Students join each class on their own Chromebook or phone with a code, and take a hall pass from it, then mark themselves back. With
         student devices, you don't need a kiosk at all.
       </p>
     </div>
@@ -72,7 +72,7 @@
                 <p class="muted small">On. Print each class's PIN cards from the <a href="/roster">Roster</a>.</p>
               {:else}
                 <p class="muted small">
-                  A student sets up their device with their first name and PIN, so nobody signs out as someone else.
+                  A student sets up their device with their first name and PIN, so nobody takes a pass as someone else.
                   Happy Hallways makes the PINs up; you can print them as cards from the Roster.
                 </p>
                 <div><button class="btn btn-primary" onclick={() => setStudentPins(true)}><Icon name="key" size={16} />Turn on student PINs</button></div>
@@ -86,7 +86,7 @@
               <p class="muted small">
                 {pins
                   ? 'Each class gets its own code. It works while Happy Hallways is open on this computer.'
-                  : 'You can turn them on without PINs, but then students can only see how things stand, not sign out.'}
+                  : 'You can turn them on without PINs, but then students can only see who’s out, not take a pass.'}
               </p>
               <div>
                 <button class="btn" class:btn-primary={pins} onclick={() => setStudentLink(true)}>
@@ -125,7 +125,7 @@
             <div class="notice-bar" role="note">
               <Icon name="alert-triangle" />
               <div class="stack" style="gap:6px">
-                <span>Student PINs are off, so students can only watch, not sign out.</span>
+                <span>Student PINs are off, so students can only watch, not take a pass.</span>
                 <div><button class="btn btn-small" onclick={() => setStudentPins(true)}>Turn on student PINs</button></div>
               </div>
             </div>
