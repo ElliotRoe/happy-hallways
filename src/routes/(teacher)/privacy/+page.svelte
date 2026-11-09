@@ -89,22 +89,15 @@
     </p>
   </section>
 
-  <!-- Draft (docs/adr/0016): must be reviewed by someone qualified in student-privacy law before the
-       Student link's device setup ships to teachers. Keep this note until then. -->
-  <section class="card" aria-labelledby="ferpa-title">
-    <h2 id="ferpa-title">FERPA and COPPA</h2>
-    <p class="draft-note">Draft: this section is waiting for review by a student-privacy specialist.</p>
+  <section class="card" aria-labelledby="where-title">
+    <h2 id="where-title">Where your students' information is</h2>
     <p>
-      <strong>No student data on our servers, ever.</strong> Every record Happy Hallways keeps lives only in your browser,
-      on a computer your school controls. We never receive, store or have access to your students' information, so we
-      don't hold education records under FERPA. Your school decides whether to use Happy Hallways under its own FERPA
-      policies, as it would for any tool its teachers run.
+      <strong>Only on your computer.</strong> Your classes, students, passes and history live in your browser on your own
+      computer. None of it is ever sent to a server we run, and we can't see it.
     </p>
     <p>
-      We collect no personal information from children. Students' devices talk only to their teacher's computer; nothing
-      a student does reaches a server we run, so COPPA's rules on collecting children's information online don't come into
-      play for us. Our matchmaking server sees only random device addresses, and the relay carries encrypted data it
-      can't read.
+      Students' devices talk only to your computer. A student's device keeps one random code that means nothing anywhere
+      else. Our matchmaking server sees only random device addresses, and the relay carries encrypted data it can't read.
     </p>
   </section>
 
@@ -137,14 +130,6 @@
   .card p {
     font-size: 15px;
     line-height: 1.6;
-  }
-
-  .draft-note {
-    padding: 8px 12px;
-    border-radius: 10px;
-    background: var(--warn-wash);
-    color: var(--warn);
-    font-weight: 700;
   }
 
   .card a {

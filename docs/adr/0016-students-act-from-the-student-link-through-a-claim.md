@@ -28,7 +28,8 @@ Chromebook is free again as soon as the class changes.
 - No server we run ever holds student data, a Claim, or a record of who did
   what. A claimed device keeps only a random token that means nothing outside
   the teacher's computer. This is a hard rule for every student-facing feature,
-  and the privacy page and SECURITY.md say so in terms of FERPA and COPPA.
+  and the privacy page and SECURITY.md say plainly where the data is, without
+  claiming anything about privacy laws.
 - A PIN is never a real school ID number, and stays 3 to 6 made-up digits,
   because it is now also what a student types to Claim a device.
 - A student has at most one claimed device. The teacher can end any Claim or all

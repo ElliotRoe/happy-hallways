@@ -8,24 +8,17 @@ door. See `docs/adr/0014-the-teachers-computer-is-the-only-source-of-truth.md`.
 **No student data on any server we run** is a hard rule for every
 student-facing feature (`docs/adr/0016`).
 
-## Student privacy: FERPA and COPPA
+## Where student data lives
 
-> **Draft: needs review by someone qualified in student-privacy law before the
-> Student link Claims feature (release 3) ships.** This is our plain reading of
-> how the design fits, not legal advice.
+This is a plain description of where data is. It makes no claim about any law
+or regulation.
 
-- **Education records stay with the school.** Every record Hallway keeps
-  (the Roster, passes, History) lives only in the teacher's own browser, on a
-  computer the school controls. We never receive, store or have access to it,
-  so we don't hold education records under FERPA. Schools decide whether to
-  use Hallway under their own FERPA policies and authority, the same as for any
-  tool their teachers run.
-- **We collect no personal information from children.** Students' devices
-  talk only to their teacher's computer. The only thing a student's device
-  keeps is a Claim's random token (see below), which identifies nobody and
-  means nothing outside that teacher's computer. Nothing a student does reaches
-  a server we run, so we don't collect personal information from children
-  under COPPA.
+- **Records stay on the teacher's computer.** Every record Hallway keeps (the
+  Roster, passes, History, Attendance) lives only in the teacher's own
+  browser. We never receive, store or have access to it.
+- **Students' devices** talk only to their teacher's computer. The only thing a
+  student's device keeps is a Claim's random token (see below), which
+  identifies nobody and means nothing outside that teacher's computer.
 - **What passes through our servers:** the matchmaking server sees randomly
   generated device addresses; the TURN relay carries encrypted traffic it can't
   read; `/api/turn` hands out relay logins. None of them see names, PINs,
