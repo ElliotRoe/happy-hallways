@@ -409,7 +409,10 @@
 
       <div class="device" aria-labelledby="kiosk-title">
         <div class="panel-head">
-          <h3 id="kiosk-title"><Icon name="kiosk" size={18} />Kiosk</h3>
+          <h3 id="kiosk-title">
+            <Icon name="kiosk" size={18} />Kiosk
+            <a class="device-gear" href="/kiosk" aria-label="Kiosk settings" title="Kiosk settings"><Icon name="settings" size={15} /></a>
+          </h3>
           <span class="kiosk-state"><span class="status-dot {kiosk.dot}" aria-hidden="true"></span>{kiosk.text.replace(/^Kiosk (\w)/, (_, first) => first.toUpperCase())}</span>
         </div>
         {#if !account.kiosk}
@@ -448,15 +451,16 @@
               }}>Reconnect</button
             >
             <button class="btn btn-small btn-quiet" onclick={disconnect}>Disconnect</button>
-            <a class="device-more" href="/kiosk">Kiosk settings<span aria-hidden="true">&nbsp;→</span></a>
-      </div>
+          </div>
         {/if}
-        <a class="device-more" href="/kiosk">Kiosk settings<span aria-hidden="true">&nbsp;→</span></a>
       </div>
 
       <div class="device" aria-labelledby="student-link-title">
         <div class="panel-head">
-          <h3 id="student-link-title"><Icon name="smartphone" size={18} />Student devices</h3>
+          <h3 id="student-link-title">
+            <Icon name="smartphone" size={18} />Student devices
+            <a class="device-gear" href="/student-link" aria-label="Student devices settings" title="Student devices settings"><Icon name="settings" size={15} /></a>
+          </h3>
           {#if account.studentLink?.open}
             <span class="kiosk-state">
               <span class="status-dot" class:live={studentLink.viewers > 0} aria-hidden="true"></span>{studentLink.setUp} set up · {studentLink.viewers - studentLink.setUp} watching
@@ -482,7 +486,6 @@
           <p class="muted small">Students can join each class from their own Chromebook or phone with a code.</p>
           <div class="kiosk-actions"><a class="btn btn-small" href="/student-link">Turn on student devices</a></div>
         {/if}
-        <a class="device-more" href="/student-link">Student devices settings<span aria-hidden="true">&nbsp;→</span></a>
       </div>
     </section>
     </div>
@@ -712,17 +715,21 @@
     font-weight: 700;
   }
 
-  .device-more {
-    justify-self: start;
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 700;
-    text-decoration: none;
+  /* Opens the device's own page. */
+  .device-gear {
+    display: inline-grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    margin-left: -2px;
+    border-radius: 6px;
+    color: var(--faint);
   }
 
-  .device-more:hover {
-    color: var(--accent);
-    text-decoration: underline;
+  .device-gear:hover,
+  .device-gear:focus-visible {
+    background: var(--surface-sunk);
+    color: var(--text);
   }
 
   .kiosk-actions {
