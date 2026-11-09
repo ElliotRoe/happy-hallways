@@ -91,7 +91,7 @@ test('a schedule with no-pass times', async ({ page }) => {
   await circle(page.getByRole('button', { name: 'Join the line' }));
   await snap(page, guide, '7-kiosk-no-passes', [
     page.getByRole('heading', { name: 'Join the line?' }),
-    page.getByRole('button', { name: 'Teacher PIN' }),
+    page.getByRole('button', { name: 'Teacher: let them go' }),
   ]);
   await page.getByRole('button', { name: 'Join the line' }).click();
   await page.getByRole('button', { name: 'Done' }).click();

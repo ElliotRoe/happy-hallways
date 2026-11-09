@@ -434,7 +434,7 @@ test('the pass allowance stops a student, and the teacher can let them go with t
   await page.getByRole('button', { name: /^Bathroom 1/ }).click();
   await expect(page.getByText('Out of passes')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Ask my teacher' })).toBeHidden();
-  await page.getByRole('button', { name: 'Teacher PIN' }).click();
+  await page.getByRole('button', { name: 'Teacher: let them go' }).click();
   await page.getByLabel('PIN').fill('2468');
   await page.getByRole('button', { name: 'Unlock' }).click();
   await expect(page.getByText('Jordan E.: Bathroom')).toBeVisible();

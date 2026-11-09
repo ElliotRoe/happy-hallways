@@ -88,7 +88,7 @@
     </figure>
     <p>
       If a student really needs to go, they can tap <strong>Ask my teacher</strong>, and you approve or deny the request
-      on Home. Or tap <strong>Teacher PIN</strong> and enter your PIN right at the kiosk. Either way, their pass is marked
+      on Home. Or tap <strong>Teacher: let them go</strong> and enter your PIN right at the kiosk. Either way, their pass is marked
       so your records stay complete. (When the kiosk is this computer, or it’s offline, only the PIN works.)
     </p>
     <p>

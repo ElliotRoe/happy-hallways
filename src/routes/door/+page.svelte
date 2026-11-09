@@ -273,7 +273,7 @@
     }
   }
 
-  /** "Teacher PIN", wherever a rule has stopped a student: the teacher lets them go right here. */
+  /** "Teacher: let them go", wherever a rule has stopped a student: the teacher types their PIN and lets them go right here. */
   function askToLetGo(offer: { studentId: string; destination: string }) {
     dismissNotice();
     openTeacher();
@@ -306,6 +306,34 @@
     teacher = 'closed';
   }
 </script>
+
+<!--
+  Wherever a rule stops a student: asking the teacher, and the teacher letting
+  them go with their PIN. Asking needs a separate kiosk that can reach the
+  teacher's computer; otherwise the screen says why instead of hiding it.
+-->
+{#snippet askOptions(offer: { studentId: string; destination: string }, close?: () => void)}
+  {#if paired}
+    <button
+      class="door-btn"
+      disabled={!canAsk()}
+      onclick={() => {
+        close?.();
+        ask(offer);
+      }}><Icon name="hand" size={16} />Ask my teacher</button
+    >
+    {#if !canAsk()}<p class="ask-note">Your teacher's computer isn't connected</p>{/if}
+  {:else}
+    <p class="ask-note">Need to go now? Ask your teacher to let you go.</p>
+  {/if}
+  <button
+    class="door-btn"
+    onclick={() => {
+      close?.();
+      askToLetGo(offer);
+    }}><Icon name="lock" size={16} />Teacher: let them go</button
+  >
+{/snippet}
 
 <svelte:head>
   <title>Happy Hallways kiosk</title>
@@ -555,22 +583,7 @@
         {#if spot}
           {@const offer = { studentId: spot.studentId, destination: spot.destination }}
           <div class="choices">
-            {#if canAsk()}
-              <button
-                class="door-btn"
-                onclick={() => {
-                  waitingFor = null;
-                  ask(offer);
-                }}><Icon name="hand" size={16} />Ask my teacher</button
-              >
-            {/if}
-            <button
-              class="door-btn"
-              onclick={() => {
-                waitingFor = null;
-                askToLetGo(offer);
-              }}><Icon name="lock" size={16} />Teacher PIN</button
-            >
+            {@render askOptions(offer, () => (waitingFor = null))}
           </div>
         {/if}
       </div>
@@ -624,10 +637,7 @@
         {/if}
         {#if door.notice.offerTeacher}
           {@const offer = door.notice.offerTeacher}
-          {#if canAsk()}
-            <button class="door-btn" onclick={() => ask(offer)}><Icon name="hand" size={16} />Ask my teacher</button>
-          {/if}
-          <button class="door-btn" onclick={() => askToLetGo(offer)}><Icon name="lock" size={16} />Teacher PIN</button>
+          {@render askOptions(offer)}
         {/if}
       </div>
     </div>
@@ -712,6 +722,13 @@
 </div>
 
 <style>
+  .ask-note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 15px;
+    text-align: center;
+  }
+
   .door-room {
     margin-left: auto;
   }
