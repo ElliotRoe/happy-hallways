@@ -117,7 +117,7 @@
 {#if !belongsAtDoor}
   <div class="shell">
     {#if ready}<Sidebar />{:else}<aside class="sidebar"></aside>{/if}
-    <main class="main" class:clears-drawer={ready && account.classes.length > 0 && page.url.pathname !== '/'}>
+    <main class="main" class:clears-drawer={ready && account.classes.length > 0}>
       {@render children()}
       <!-- Home places the footer itself, under its middle column, so the page fits the window without scrolling. -->
       {#if page.url.pathname !== '/' || !account.classes.length}<SiteFooter />{/if}
@@ -169,9 +169,10 @@
     pointer-events: none;
   }
 
-  /* Room under the page for the Needs you tab, so it never covers the footer. */
-  .main.clears-drawer {
-    padding-bottom: 64px;
+  /* The Needs you tab sits in the bottom-right corner, so the footer moves to the left, out from under it. */
+  .main.clears-drawer :global(.site-footer) {
+    justify-content: flex-start;
+    padding-left: 0;
   }
 
   .corner.with-drawer {
