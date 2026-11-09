@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { account, moveDestination } from '#lib/account.svelte.ts';
+  import { account, markPopupsSeen, moveDestination } from '#lib/account.svelte.ts';
   import { tick } from 'svelte';
   import DestinationDialog from '#lib/DestinationDialog.svelte';
   import DestinationIcon from '#lib/DestinationIcon.svelte';
@@ -33,6 +33,10 @@
     document.querySelector<HTMLElement>(`[data-grip="${id}"]`)?.focus();
   }
 
+  /** The tip about separate bathroom lines, until the teacher closes it. It stays closed (it's saved with their data). */
+  const bathroomTip = 'destinations-bathroom-lines';
+  const showBathroomTip = $derived(!account.seenPopups[bathroomTip]);
+
   // Looking over the destinations ticks them off the getting-started checklist.
   updateOnboarding({ visitedDestinations: true });
 </script>
@@ -44,11 +48,21 @@
       <h1>Where students can go</h1>
       <p class="muted">The kiosk shows them in this order. Drag to reorder.</p>
     </div>
-    <div class="row">
-      <a class="btn btn-quiet" href="/guides/separate-bathroom-lines">One boy, one girl?</a>
-      <button class="btn btn-primary" onclick={() => (editing = null)}><Icon name="plus" size={16} />Add destination</button>
-    </div>
+    <button class="btn btn-primary" onclick={() => (editing = null)}><Icon name="plus" size={16} />Add destination</button>
   </header>
+
+  {#if showBathroomTip}
+    <aside class="tip-box" aria-label="Tip">
+      <p>
+        Looking to create separate lines for different bathrooms, like a girls' line and a boys' line? Check out the
+        guide.
+      </p>
+      <a class="btn btn-small" href="/guides/separate-bathroom-lines">Open guide</a>
+      <button class="btn btn-small btn-quiet close" aria-label="Close this tip" onclick={() => markPopupsSeen([bathroomTip])}>
+        <Icon name="x" size={16} />
+      </button>
+    </aside>
+  {/if}
 
   <div class="destination-cards">
     {#each account.destinations as destination (destination.id)}
@@ -136,6 +150,7 @@
     box-shadow: 0 0 0 2px var(--accent-wash);
   }
 
+  /* Always visible, so it's clear each card can be dragged. */
   .grip {
     position: absolute;
     top: 8px;
@@ -147,8 +162,29 @@
     border: 0;
     border-radius: 6px;
     background: none;
-    color: var(--faint);
+    color: var(--muted);
     cursor: grab;
+  }
+
+  .tip-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 12px 12px 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .tip-box p {
+    flex: 1;
+    margin: 0;
+    font-size: 14px;
+  }
+
+  .tip-box .close {
+    padding-inline: 6px;
   }
 
   .grip:hover,

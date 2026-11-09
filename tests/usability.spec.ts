@@ -182,3 +182,55 @@ test('making a destination Private takes away its limit', async ({ page }) => {
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('button', { name: /^Bathroom 1/ })).toContainText('Private, no limit');
 });
+
+test("on the teacher's own computer, a stopped student is told to ask the teacher, who can let them go", async ({ page }) => {
+  await setUp(page, {
+    passes: [
+      { id: 'p-zoe', classId: 'p1', studentId: 'zoe', studentName: 'Zoe A.', destination: 'Bathroom 1', minutes: 5, outAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    ],
+  });
+  await page.goto('/door');
+  await page.getByRole('button', { name: /Ana B\./ }).click();
+  await page.getByRole('button', { name: /^Bathroom 1/ }).click();
+  await expect(page.getByText('Need to go now? Ask your teacher to let you go.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ask my teacher' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Teacher: let them go' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Teacher PIN' })).toHaveCount(0);
+});
+
+test("a kiosk that can't reach the teacher's computer shows Ask my teacher, turned off, and says why", async ({ page }) => {
+  await page.goto('/door');
+  await page.evaluate(() => {
+    const at = new Date().toISOString();
+    const setup = {
+      classes: [{ id: 'p1', name: 'Period 1', students: [{ id: 'ana', name: 'Ana B.' }, { id: 'zoe', name: 'Zoe A.' }] }],
+      destinations: [{ id: 'b1', label: 'Bathroom 1', minutes: 5, color: 'blue', icon: 'toilet', limit: 1 }],
+      lineEnabled: true,
+      passAllowance: { enabled: false, passes: 3, per: 'week', whenUsedUp: 'stop', since: at },
+      countedPasses: [],
+      activeClass: { id: 'p1', changedAt: at },
+      pin: '2468',
+      passes: [{ id: 'p', classId: 'p1', studentId: 'zoe', studentName: 'Zoe A.', destination: 'Bathroom 1', minutes: 5, outAt: at, updatedAt: at }],
+      line: [{ studentId: 'ana', studentName: 'Ana B.', classId: 'p1', destination: 'Bathroom 1', joinedAt: at }],
+    };
+    localStorage.setItem('hallway.door', JSON.stringify({ laptopPeerId: 'closed-laptop', kioskId: 'k', secret: 's', setup, returns: [] }));
+  });
+  await page.reload();
+  // Ana is in line and taps her name before her turn: the In line sheet.
+  await page.getByRole('button', { name: /Ana B\./ }).click();
+  await expect(page.getByRole('button', { name: 'Ask my teacher' })).toBeDisabled();
+  await expect(page.getByText("Your teacher's computer isn't connected")).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Teacher: let them go' })).toBeVisible();
+});
+
+test('the separate-bathroom-lines tip on Destinations opens the guide, and stays closed once closed', async ({ page }) => {
+  await setUp(page);
+  await page.goto('/destinations');
+  const tip = page.getByRole('complementary', { name: 'Tip' });
+  await expect(tip.getByRole('link', { name: 'Open guide' })).toHaveAttribute('href', '/guides/separate-bathroom-lines');
+  await tip.getByRole('button', { name: 'Close this tip' }).click();
+  await expect(tip).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Where students can go' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Tip' })).toHaveCount(0);
+});
