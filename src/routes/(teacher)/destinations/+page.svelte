@@ -42,13 +42,12 @@
     <div>
       <p class="eyebrow">Destinations</p>
       <h1>Where students can go</h1>
-      <p class="muted">
-        One list for all your classes. Students see these at the kiosk, in this order, with the color and icon you
-        choose. Drag a card to move it.
-        Want one boy and one girl out at once? <a href="/guides/separate-bathroom-lines">Give each bathroom its own line</a>.
-      </p>
+      <p class="muted">The kiosk shows them in this order. Drag to reorder.</p>
     </div>
-    <button class="btn btn-primary" onclick={() => (editing = null)}><Icon name="plus" size={16} />Add destination</button>
+    <div class="row">
+      <a class="btn btn-quiet" href="/guides/separate-bathroom-lines">One boy, one girl?</a>
+      <button class="btn btn-primary" onclick={() => (editing = null)}><Icon name="plus" size={16} />Add destination</button>
+    </div>
   </header>
 
   <div class="destination-cards">
