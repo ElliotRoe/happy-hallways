@@ -16,12 +16,43 @@
    * grip's arrow keys.
    */
   let dragging = $state<string | null>(null);
-  let over = $state<string | null>(null);
+  /** Where the dragged card would land: the gap before card `index` (or after the last), and the line drawn there. */
+  let gap = $state<{ index: number; left: number; top: number; height: number } | null>(null);
+  let grid: HTMLDivElement;
 
-  function drop(targetId: string) {
-    if (dragging && dragging !== targetId) moveDestination(dragging, account.destinations.findIndex((each) => each.id === targetId));
+  /** Finds the gap nearest the pointer, anywhere over the cards or between them. */
+  function findGap(event: DragEvent) {
+    const slots = [...grid.querySelectorAll<HTMLElement>('.card-slot')];
+    if (!slots.length) return;
+    const box = grid.getBoundingClientRect();
+    const rects = slots.map((slot) => slot.getBoundingClientRect());
+    // The nearest card: rows first, then across.
+    let nearest = 0;
+    let best = Infinity;
+    rects.forEach((rect, index) => {
+      const dy = event.clientY < rect.top ? rect.top - event.clientY : event.clientY > rect.bottom ? event.clientY - rect.bottom : 0;
+      const dx = Math.abs(event.clientX - (rect.left + rect.width / 2));
+      const score = dy * 10_000 + dx;
+      if (score < best) {
+        best = score;
+        nearest = index;
+      }
+    });
+    const rect = rects[nearest];
+    const after = event.clientX > rect.left + rect.width / 2;
+    const index = nearest + (after ? 1 : 0);
+    const columnGap = parseFloat(getComputedStyle(grid).columnGap) || 12;
+    const x = after ? rect.right + columnGap / 2 : rect.left - columnGap / 2;
+    gap = { index, left: x - box.left, top: rect.top - box.top, height: rect.height };
+  }
+
+  function drop() {
+    if (dragging && gap) {
+      const from = account.destinations.findIndex((each) => each.id === dragging);
+      moveDestination(dragging, gap.index > from ? gap.index - 1 : gap.index);
+    }
     dragging = null;
-    over = null;
+    gap = null;
   }
 
   async function moveWithKeys(event: KeyboardEvent, id: string) {
@@ -63,28 +94,28 @@
     </aside>
   {/if}
 
-  <div class="destination-cards">
+  <div
+    class="destination-cards"
+    class:dragging={!!dragging}
+    bind:this={grid}
+  >
+    {#if dragging && gap}
+      <div class="drop-line" aria-hidden="true" style:left="{gap.left}px" style:top="{gap.top}px" style:height="{gap.height}px"></div>
+    {/if}
     {#each account.destinations as destination (destination.id)}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
         class="card-slot"
-        class:over={over === destination.id && dragging !== destination.id}
         class:lifted={dragging === destination.id}
         draggable="true"
         ondragstart={(event) => {
           dragging = destination.id;
-          event.dataTransfer?.setData('text/plain', destination.id);
+          if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', destination.id);
+          }
         }}
-        ondragover={(event) => {
-          event.preventDefault();
-          over = destination.id;
-        }}
-        ondragleave={() => over === destination.id && (over = null)}
-        ondrop={(event) => {
-          event.preventDefault();
-          drop(destination.id);
-        }}
-        ondragend={() => ((dragging = null), (over = null))}
+        ondragend={() => ((dragging = null), (gap = null))}
       >
         <button class="destination-card" onclick={() => (editing = destination)}>
           <DestinationIcon label={destination.label} size={44} />
@@ -125,6 +156,21 @@
   {/if}
 </div>
 
+<!-- A dragged card can be dropped anywhere on the page; it lands in the gap nearest the pointer. -->
+<svelte:window
+  ondragover={(event) => {
+    if (!dragging) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    findGap(event);
+  }}
+  ondrop={(event) => {
+    if (!dragging) return;
+    event.preventDefault();
+    drop();
+  }}
+/>
+
 {#if editing !== undefined}
   <DestinationDialog destination={editing} onClose={() => (editing = undefined)} />
 {/if}
@@ -144,9 +190,43 @@
     opacity: 0.5;
   }
 
-  .card-slot.over .destination-card {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-wash);
+  .destination-cards {
+    position: relative;
+  }
+
+  /* While dragging, the other cards ignore the pointer, so nothing on them flickers. */
+  .destination-cards.dragging .card-slot:not(.lifted) {
+    pointer-events: none;
+  }
+
+  /* Where the card will land: a line in the gap between two cards. */
+  .drop-line {
+    position: absolute;
+    z-index: 2;
+    width: 4px;
+    margin-left: -2px;
+    border-radius: 2px;
+    background: var(--accent);
+    pointer-events: none;
+  }
+
+  .drop-line::before,
+  .drop-line::after {
+    content: '';
+    position: absolute;
+    left: -3px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .drop-line::before {
+    top: -5px;
+  }
+
+  .drop-line::after {
+    bottom: -5px;
   }
 
   /* Always visible, so it's clear each card can be dragged. */
