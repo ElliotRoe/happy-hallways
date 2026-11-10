@@ -85,7 +85,7 @@
               <h2>Turn on student devices</h2>
               <p class="muted small">
                 {pins
-                  ? 'Each class gets its own code. It works while Happy Hallways is open on this computer.'
+                  ? 'Each class gets its own code, which works only while that class is on, and while Happy Hallways is open on this computer.'
                   : 'You can turn them on without PINs, but then students can only see who’s out, not take a pass.'}
               </p>
               <div>
@@ -202,7 +202,7 @@
 {#if confirmNewCode}
   <ConfirmDialog
     title="Get a new code?"
-    message="The old code stops working straight away, and every student has to join again with the new one and set up their device again."
+    message="This class's old code stops working for good, and every student has to join again with the new one and set up their device again."
     confirmLabel="New code"
     onConfirm={() => {
       newRoom();

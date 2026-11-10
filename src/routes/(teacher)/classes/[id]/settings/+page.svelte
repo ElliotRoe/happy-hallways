@@ -7,6 +7,7 @@
     classPasses,
     deleteClass,
     findClass,
+    newClassCode,
     setAsksForPins,
     setVisibility,
     updateClass,
@@ -14,6 +15,7 @@
   } from '#lib/account.svelte.ts';
   import ConfirmDialog from '#lib/ConfirmDialog.svelte';
   import Icon from '#lib/Icon.svelte';
+  import RoomCode from '#lib/RoomCode.svelte';
   import type { ClassVisibility } from '#lib/types.ts';
 
   /**
@@ -23,6 +25,8 @@
   const cls = $derived(findClass(page.params.id ?? ''));
   const shows = $derived(visibilityOf(cls));
   let confirmingDelete = $state(false);
+  let confirmingNewCode = $state(false);
+  const isOn = $derived(account.activeClass?.id === cls?.id);
 
   function rename(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
@@ -101,6 +105,23 @@
     </div>
   </section>
 
+  {#if cls.code}
+    <section class="card" aria-labelledby="code-title">
+      <h2 id="code-title">Class code</h2>
+      <div class="option-row">
+        <div class="code-row">
+          <RoomCode code={cls.code} size="small" />
+          <p class="muted small">
+            Students join this class on their own device with this code. It stays the same, so you can post it, but it
+            works only while {cls.name} is on{account.studentLink?.open ? '' : ', with student devices turned on'}.
+            {isOn ? 'This class is on now.' : ''}
+          </p>
+        </div>
+        <button class="btn" onclick={() => (confirmingNewCode = true)}><Icon name="history" size={16} />New code</button>
+      </div>
+    </section>
+  {/if}
+
   <section class="card" aria-labelledby="sees-title">
     <h2 id="sees-title">What students can see</h2>
     {#each seeOptions as option (option.key)}
@@ -132,6 +153,19 @@
       <button class="btn btn-danger" onclick={() => (confirmingDelete = true)}><Icon name="trash" size={15} />Delete class</button>
     </div>
   </section>
+
+  {#if confirmingNewCode}
+    <ConfirmDialog
+      title="Give {cls.name} a new code?"
+      message="The old code stops working for good. Students join with the new one{isOn ? ', and everyone in the class now has to join again and set up their device again' : ''}."
+      confirmLabel="New code"
+      onConfirm={() => {
+        newClassCode(cls.id);
+        confirmingNewCode = false;
+      }}
+      onCancel={() => (confirmingNewCode = false)}
+    />
+  {/if}
 
   {#if confirmingDelete}
     <ConfirmDialog
@@ -165,6 +199,16 @@
   .option-row p {
     max-width: 60ch;
     margin-top: 3px;
+  }
+
+  .code-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .code-row p {
+    max-width: 44ch;
   }
 
   .option-row h3 {

@@ -244,6 +244,10 @@ function upgrade(saved: SavedAccount): Account {
   // The Student link used to be one lasting link; it's now a Room per class period (docs/adr/0019).
   const link = saved.studentLink as { open: boolean; room?: Room | null } | null;
   saved.studentLink = link ? { open: link.open, room: link.room ?? null } : null;
+  // Each class keeps its code now (docs/adr/0023). The class on now keeps the one its students already have.
+  const roomClass = saved.classes.find((cls) => cls.id === saved.studentLink?.room?.classId);
+  if (roomClass && !roomClass.code) roomClass.code = saved.studentLink!.room!.code;
+  for (const cls of saved.classes) cls.code ??= newRoomCode(saved.classes);
   delete (saved as { claimsEndWithClass?: boolean }).claimsEndWithClass;
   for (const cls of saved.classes) {
     delete cls.destinations;
@@ -546,6 +550,7 @@ export function createClass(name: string) {
     id: newId(),
     name,
     members: [],
+    code: newRoomCode(),
     createdAt: now(),
   };
   account.classes.push(cls);
@@ -1684,15 +1689,19 @@ export function setNetworkBlocked(blocked: boolean) {
   save();
 }
 
-/** A Room code: six digits, never starting with 0. */
-function newRoomCode() {
-  return String(100_000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900_000));
+/** A class's code: six digits, never starting with 0, and none of this teacher's other classes has it. */
+function newRoomCode(classes: { code?: string }[] = account.classes) {
+  for (;;) {
+    const code = String(100_000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900_000));
+    if (!classes.some((cls) => cls.code === code)) return code;
+  }
 }
 
 /**
- * Keeps the Room matching the class on the door: each class period has its
- * own Room and code, and there is none between classes. A new Room ends every Claim, so students check in to each class
- * again. See docs/adr/0019.
+ * Keeps the Room matching the class on the door: each class has one lasting
+ * code, and students can reach it only while that class is on. There is no
+ * Room between classes. A new Room ends every Claim, so students set up their
+ * device again in each class. See docs/adr/0023.
  */
 function refreshRoom() {
   const link = account.studentLink;
@@ -1704,8 +1713,11 @@ function refreshRoom() {
     link.room = null;
     return;
   }
-  if (link.room?.classId === classId) return;
-  link.room = { code: newRoomCode(), classId, startedAt: now() };
+  const cls = findClass(classId);
+  if (cls) cls.code ??= newRoomCode();
+  const code = cls?.code ?? newRoomCode();
+  if (link.room?.classId === classId && link.room.code === code) return;
+  link.room = { code, classId, startedAt: now() };
   account.claims = [];
 }
 
@@ -1717,16 +1729,27 @@ export function setStudentLink(open: boolean) {
 }
 
 /**
- * A new code for the class on now: the old one stops working at once, and
- * every device has to join again. Also used when another teacher's Room
- * happens to have the same code.
+ * A new code for the class on now, for good: the old one stops working at
+ * once, and every device has to join again. Also used when another teacher's
+ * Room happens to have the same code.
  */
 export function newRoom() {
   const room = account.studentLink?.room;
   if (!room) return;
-  room.code = newRoomCode();
-  room.startedAt = now();
-  account.claims = [];
+  newClassCode(room.classId);
+}
+
+/** Replaces a class's code for good, say when it got around. If the class is on, its Room moves to the new code now. */
+export function newClassCode(classId: string) {
+  const cls = findClass(classId);
+  if (!cls) return;
+  cls.code = newRoomCode();
+  const room = account.studentLink?.room;
+  if (room?.classId === classId) {
+    room.code = cls.code;
+    room.startedAt = now();
+    account.claims = [];
+  }
   save();
 }
 
@@ -1891,6 +1914,9 @@ export function importAccount(text: string, own = true) {
     restored.replacedKiosks = [];
     restored.studentLink = restored.studentLink ? { open: false, room: null } : null;
     restored.claims = [];
+    // Their students know those codes: this teacher's classes get their own.
+    for (const cls of restored.classes) delete cls.code;
+    for (const cls of restored.classes) cls.code = newRoomCode(restored.classes);
   }
   // Whatever this computer's older copy holds isn't part of the backup, so it's never folded into it.
   const legacy = localStorage.getItem(legacyKey);

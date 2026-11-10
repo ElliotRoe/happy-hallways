@@ -165,6 +165,8 @@ export type Class = {
   visibility?: Partial<ClassVisibility>;
   /** With Student PINs on, a class can still skip asking for them, say for the youngest grades. Each student keeps their one PIN. */
   pinsOff?: true;
+  /** The code students join this class with on their own devices. It lasts, but works only while the class is on. See docs/adr/0023. */
+  code?: string;
   createdAt: string;
 };
 
@@ -326,7 +328,7 @@ export type Account = {
   networkBlocked: boolean;
   /**
    * The Student link: whether it is open, and the Room students join right
-   * now. Every class period gets a new Room, with a new code. See docs/adr/0019.
+   * now. Each class's Room has that class's lasting code. See docs/adr/0023.
    */
   studentLink: { open: boolean; room: Room | null } | null;
   /** Students' own devices that act as them in the current Room. At most one per student. See docs/adr/0016. */
@@ -547,13 +549,15 @@ export type StudentView = {
 /**
  * Messages from the teacher's computer to a student's device. "closed": the
  * teacher closed the link. "full": too many people are viewing. "old-link":
- * the teacher got a new link, so this one stops working.
+ * the teacher gave the class a new code, so this one stops working.
  */
 export type StudentLinkMessage =
   | { type: 'view'; view: StudentView }
   | { type: 'closed' }
   | { type: 'full' }
   | { type: 'old-link' }
+  /** The class ended: its code works again next time the class is on. See docs/adr/0023. */
+  | { type: 'class-over' }
   | { type: 'ping' }
   | { type: 'claimed'; token: string; name: string }
   | { type: 'claim-refused'; message: string }

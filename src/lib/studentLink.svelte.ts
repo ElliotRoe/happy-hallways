@@ -33,7 +33,7 @@ import type { LinkAction, OwnView, StudentLinkMessage, StudentMessage, StudentVi
 
 /**
  * The Student link, on the teacher's computer. Each class period is a Room
- * with its own code (docs/adr/0019). Students open the link on
+ * with that class's lasting code (docs/adr/0023). Students open the link on
  * their own Chromebook or phone, and their browser connects straight to this
  * one (PeerJS over WebRTC, relayed through Cloudflare's TURN servers when a
  * network blocks direct connections; see peer.ts), the same way the kiosk
@@ -99,6 +99,16 @@ let roomPausedUntil = 0;
 
 /** The tab answering the link says so every few seconds, so another tab can tell it from another teacher's Room with the same code. */
 const holderKey = 'hallway.student-link-holder';
+/** Every code this computer answered lately, and when: a class's code comes back when the class does (docs/adr/0023). */
+const recentKey = 'hallway.student-link-recent';
+
+function recentlyHeld(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(recentKey) ?? '{}') ?? {};
+  } catch {
+    return {};
+  }
+}
 let holderTimer = 0;
 
 let peer: Peer | null = null;
@@ -175,8 +185,11 @@ export async function serveStudentLink() {
     pushView();
     return;
   }
-  // A new Room (the class changed), or none: whoever was in the old one is told it ended.
-  turnAwayAll({ type: account.studentLink?.open ? 'old-link' : 'closed' });
+  // A new Room (the class changed), or none: whoever was in the old one is told why. A code
+  // some class still has works again when that class is on; one no class has is gone.
+  const oldCode = claimed?.slice(studentLinkPrefix.length);
+  const stillAClass = account.classes.some((cls) => cls.code === oldCode);
+  turnAwayAll({ type: !account.studentLink?.open ? 'closed' : stillAClass ? 'class-over' : 'old-link' });
   roomTries = [];
   roomPausedUntil = 0;
   clearInterval(holderTimer);
@@ -197,7 +210,13 @@ export async function serveStudentLink() {
     return;
   }
   peer = created;
-  const holding = () => localStorage.setItem(holderKey, JSON.stringify({ address, at: Date.now() }));
+  const holding = () => {
+    const at = Date.now();
+    localStorage.setItem(holderKey, JSON.stringify({ address, at }));
+    // Only the last ten minutes matter: longer ago, the server has long let the code go.
+    const recent = Object.fromEntries(Object.entries(recentlyHeld()).filter(([, when]) => at - when < 600_000));
+    localStorage.setItem(recentKey, JSON.stringify({ ...recent, [address]: at }));
+  };
   created.on('open', () => {
     heldSince = 0;
     studentLink.status = 'live';
@@ -223,7 +242,9 @@ export async function serveStudentLink() {
     const anotherTab = holder?.address === address && Date.now() - holder.at <= 15_000;
     if (anotherTab) heldSince = 0;
     else heldSince ||= Date.now();
-    if (holder?.address !== address || (!anotherTab && Date.now() - heldSince > 120_000)) {
+    // A class that was on minutes ago may still hold its code at the server, from before it ended.
+    const heldHere = holder?.address === address || Date.now() - (recentlyHeld()[address] ?? 0) < 300_000;
+    if (!heldHere || (!anotherTab && Date.now() - heldSince > 120_000)) {
       heldSince = 0;
       claimed = null;
       newRoom();

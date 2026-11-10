@@ -1,5 +1,7 @@
 # The Student link is a Room for each class period
 
+Superseded in part by ADR 0023: each class now keeps its code, which works only while the class is on.
+
 The Student link (ADR 0012) was one lasting address. Someone who once had it
 could come back to it any time and keep guessing first names and PINs (ADR
 0018) until one fit. Now each class period is a Room with its own six-digit

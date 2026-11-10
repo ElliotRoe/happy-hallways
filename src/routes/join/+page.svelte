@@ -6,8 +6,8 @@
   /**
    * Where students join their class on their own device: they type the Room
    * code their teacher shows on the board or the kiosk, or scan its QR code,
-   * which comes straight to /join/<code>. Each class period has a new code.
-   * See docs/adr/0019.
+   * which comes straight to /join/<code>. Each class keeps its code, which
+   * works only while the class is on. See docs/adr/0023.
    */
   // A link may carry the code as ?code=123456; it's filled in, ready to join.
   let code = $state(page.url.searchParams.get('code') ?? '');

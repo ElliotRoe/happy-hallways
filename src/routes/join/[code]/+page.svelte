@@ -12,7 +12,7 @@
 
   /**
    * The Student link, on a student's own Chromebook or phone, joined with the
-   * Room code for this class period (docs/adr/0019): whether passes
+   * class's code, which works only while that class is on (docs/adr/0023): whether passes
    * are open, and how many are out and waiting, straight from the teacher's
    * computer. It never shows another student's name (docs/adr/0018). Once a
    * student sets up this device with their first name and PIN, it acts as them:
@@ -20,18 +20,43 @@
    * The teacher's computer decides; this device keeps only the Claim's random
    * token. See docs/adr/0016.
    */
-  type Reach = 'connecting' | 'live' | 'unreachable' | 'closed' | 'full' | 'old-link';
+  type Reach = 'connecting' | 'live' | 'unreachable' | 'closed' | 'full' | 'old-link' | 'class-over';
   let reach = $state<Reach>('connecting');
   let view = $state<StudentView | null>(null);
   /** This page has reached the class before, so losing it now is most likely the teacher's page reloading. */
   let wasLive = $state(false);
 
   /** How long to wait before trying the teacher's computer again, by what happened last time. */
-  const retrySeconds: Partial<Record<Reach, number>> = { unreachable: 10, closed: 20, full: 30 };
+  const retrySeconds: Partial<Record<Reach, number>> = { unreachable: 10, closed: 20, full: 30, 'class-over': 30 };
   /** After a dropped connection, look again quickly: the teacher's page is usually back within seconds. */
   const reconnectSeconds = 3;
 
   const claimKey = `hallway.claim.${page.params.code}`;
+  /**
+   * The class this code was last time. A code lasts, so a student keeps the
+   * link; if it ever shows a different class, they're told, in case another
+   * teacher's class has the same code at another time. See docs/adr/0023.
+   */
+  const classKey = `hallway.class.${page.params.code}`;
+  function stored(key: string) {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+  let knownClass = $state(stored(classKey));
+  let changedFrom = $state<string | null>(null);
+  function heardClass(name: string | null) {
+    if (!name) return;
+    if (knownClass && knownClass !== name) changedFrom = knownClass;
+    knownClass = name;
+    try {
+      localStorage.setItem(classKey, name);
+    } catch {
+      // Storage blocked: this device just won't remember the class.
+    }
+  }
   function savedClaim(): { token: string; name: string } | null {
     try {
       return JSON.parse(localStorage.getItem(claimKey) ?? 'null');
@@ -116,9 +141,13 @@
     let connection: DataConnection | null = null;
     let retryTimer = 0;
     let giveUpTimer = 0;
+    let reconnects = 0;
 
     function tryAgainLater() {
       clearTimeout(retryTimer);
+      // A reload takes seconds. Gone a minute, the class has most likely ended while the teacher's page was closed.
+      if (reach === 'unreachable' && wasLive && ++reconnects > 20) wasLive = false;
+      if (reach !== 'unreachable') reconnects = 0;
       const seconds = reach === 'unreachable' && wasLive ? reconnectSeconds : retrySeconds[reach];
       if (seconds) retryTimer = window.setTimeout(dial, seconds * 1000);
     }
@@ -156,8 +185,11 @@
           view = message.view;
           reach = 'live';
           wasLive = true;
+          reconnects = 0;
+          heardClass(message.view.className);
         }
-        if (message.type === 'closed' || message.type === 'full' || message.type === 'old-link') stopWatching(message.type);
+        if (message.type === 'class-over') wasLive = false;
+        if (message.type === 'closed' || message.type === 'full' || message.type === 'old-link' || message.type === 'class-over') stopWatching(message.type);
         hear(message);
       });
       attempt.on('close', () => {
@@ -246,6 +278,12 @@
         </p>
       </div>
       {#if view.whenPassesOpen}<p class="when">{view.whenPassesOpen}</p>{/if}
+      {#if changedFrom}
+        <div class="changed" role="alert">
+          <p>This code used to be <strong>{changedFrom}</strong>. If this isn't your class, check the code with your teacher.</p>
+          <button class="btn" onclick={() => (changedFrom = null)}>It's my class</button>
+        </div>
+      {/if}
 
       {#if view.className}
         <section class="card" aria-labelledby="out-title">
@@ -412,6 +450,14 @@
         <span class="icon-ring"><Icon name="link" size={30} /></span>
         <h1>Reconnecting to your teacher's computer…</h1>
         <p>This usually takes a few seconds. You don't need to do anything.</p>
+      {:else if reach === 'class-over' || (reach === 'unreachable' && knownClass)}
+        <span class="icon-ring"><Icon name="pause" size={30} /></span>
+        <h1>{knownClass ?? 'This class'} isn't on right now</h1>
+        <p>
+          This code works while your class is on. Keep this page: it opens by itself when your class starts.
+          {#if reach === 'unreachable'}If your class is on now, your teacher's computer may be closed.{/if}
+        </p>
+        <a class="big" href="/join">Type a different code</a>
       {:else if reach === 'unreachable'}
         <span class="icon-ring warn"><Icon name="laptop" size={30} /></span>
         <h1>Can't reach this class</h1>
@@ -431,8 +477,8 @@
         <p>Try again in a minute. This page will keep trying by itself.</p>
       {:else}
         <span class="icon-ring warn"><Icon name="link" size={30} /></span>
-        <h1>This code has ended</h1>
-        <p>Each class gets a new code. Look for this class's code on the board or the kiosk.</p>
+        <h1>This code has changed</h1>
+        <p>Your teacher gave this class a new code. Look for it on the board or the kiosk.</p>
         <a class="big" href="/join">Type the new code</a>
       {/if}
     </main>
@@ -440,6 +486,18 @@
 </div>
 
 <style>
+  .changed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+
   .names-out .where {
     color: var(--muted);
     font-size: 14px;
