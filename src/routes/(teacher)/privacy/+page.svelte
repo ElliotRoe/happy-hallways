@@ -86,7 +86,9 @@
     <p>
       Each class has its own code, shown on your kiosk and your screen, and it works only while that class is on.
       You can turn student devices off at any time, or give a class a new code straight away.
-      It never shows another student's name, how long anyone else has been out, any PIN, or anything you've set for a
+      A device that hasn't been set up with a first name and PIN is never sent anyone's name, only how many are out and
+      waiting. A set-up device also gets who's out and who's in line, unless you turn that off for the class. No device
+      is ever sent how long anyone else has been out, any PIN, or anything you've set for a
       student.
     </p>
   </section>

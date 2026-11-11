@@ -230,8 +230,8 @@ computer and the student's device.
 _Avoid_: Login, account, sign-in, session, pairing (that makes a kiosk)
 
 **Watching**:
-A Student device in the Room without a Claim. It sees what the class lets
-students see, but can't act as anyone. The Student devices page counts devices
+A Student device in the Room without a Claim. It gets only counts, never a
+name, and can't act as anyone. The Student devices page counts devices
 that joined, and how many of them can take passes (hold a Claim).
 _Avoid_: Anonymous mode, guest, viewer
 

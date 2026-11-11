@@ -83,3 +83,33 @@ test("a class that took attendance before carries it over to the one setting", a
   await expect(page.getByLabel(/before an arrival is tardy/)).toHaveValue('4');
   await expect(page.getByLabel(/hasn't arrived is absent/)).toHaveValue('25');
 });
+
+test("a device that hasn't set up with a PIN is never sent a name, only counts", async ({ page }) => {
+  await newClass(page, 'Period 1', 'Maya Chen\nJordan Ellis');
+  const place = await page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem('hallway.account.v2')!);
+    const cls = saved.classes[0];
+    const [maya, jordan] = saved.roster;
+    const place = saved.destinations[0].label;
+    const at = new Date().toISOString();
+    saved.activeClass = { id: cls.id, changedAt: at };
+    saved.passes.push({ id: 'p', classId: cls.id, studentId: maya.id, studentName: 'Maya C.', destination: place, minutes: 5, outAt: at });
+    saved.line.push({ studentId: jordan.id, studentName: 'Jordan E.', classId: cls.id, destination: place, joinedAt: at });
+    localStorage.setItem('hallway.account.v2', JSON.stringify(saved));
+    return place as string;
+  });
+  // A fresh page, so the view is worked out from what was saved, by the app's own modules.
+  await page.reload();
+  const views = await page.evaluate(async () => {
+    const link = await import('/src/lib/studentLink.svelte.ts');
+    return { watching: link.studentView(Date.now(), false), setUp: link.studentView(Date.now(), true) };
+  });
+  // Watching: how many are out and waiting, and not one name anywhere in what's sent.
+  expect(views.watching.out).toEqual([{ destination: place, count: 1 }]);
+  expect(views.watching.lines).toEqual([{ destination: place, waiting: 1 }]);
+  expect(views.watching.outNames).toBeUndefined();
+  expect(JSON.stringify(views.watching)).not.toMatch(/Maya|Jordan/);
+  // Set up with a PIN, in a class that shows names: the names too.
+  expect(views.setUp.outNames).toEqual([{ name: 'Maya C.', destination: place }]);
+  expect(views.setUp.lines[0].names).toEqual(['Jordan E.']);
+});

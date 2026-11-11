@@ -124,11 +124,14 @@ class Tokens extends Map<DataConnection, string> {
   set(connection: DataConnection, token: string) {
     super.set(connection, token);
     countViewers();
+    // Set up now: this device sees names, if its class shows them.
+    if (typeof window !== 'undefined') pushView();
     return this;
   }
   delete(connection: DataConnection) {
     const had = super.delete(connection);
     countViewers();
+    if (had && typeof window !== 'undefined') pushView();
     return had;
   }
   clear() {
@@ -139,8 +142,8 @@ class Tokens extends Map<DataConnection, string> {
 const tokens = new Tokens();
 /** Wrong PINs tried by each device, and when it may try again. */
 const pinTries = new Map<DataConnection, { wrong: number; until: number }>();
-/** What viewers were last sent, so a save that changes nothing they see sends nothing. */
-let lastSent = '';
+/** What each viewer was last sent, so a save that changes nothing they see sends nothing. */
+const lastSent = new Map<DataConnection, string>();
 const lastOwn = new Map<DataConnection, string>();
 
 function send(connection: DataConnection, message: StudentLinkMessage) {
@@ -286,7 +289,7 @@ function welcome(connection: DataConnection) {
     else if (token) send(connection, { type: 'claim-ended' });
     countViewers();
     keepAlive(connection);
-    send(connection, { type: 'view', view: studentView() });
+    sendView(connection, studentView(Date.now(), tokens.has(connection)));
     sendOwn(connection, true);
   });
   connection.on('data', (data) => hear(connection, data as StudentMessage));
@@ -294,6 +297,7 @@ function welcome(connection: DataConnection) {
     tokens.delete(connection);
     pinTries.delete(connection);
     lastOwn.delete(connection);
+    lastSent.delete(connection);
     if (viewers.delete(connection)) countViewers();
   });
 }
@@ -435,16 +439,22 @@ function pushView() {
   clearTimeout(pushTimer);
   pushTimer = window.setTimeout(() => {
     if (!viewers.size) {
-      lastSent = '';
+      lastSent.clear();
       return;
     }
     for (const viewer of viewers) sendOwn(viewer);
-    const view = studentView();
-    const json = JSON.stringify(view);
-    if (json === lastSent) return;
-    lastSent = json;
-    for (const viewer of viewers) send(viewer, { type: 'view', view });
+    // Names go only to devices set up with a first name and PIN (docs/adr/0024).
+    const watching = studentView(Date.now(), false);
+    const setUp = studentView(Date.now(), true);
+    for (const viewer of viewers) sendView(viewer, tokens.has(viewer) ? setUp : watching);
   }, 150);
+}
+
+function sendView(connection: DataConnection, view: StudentView) {
+  const json = JSON.stringify(view);
+  if (lastSent.get(connection) === json) return;
+  lastSent.set(connection, json);
+  send(connection, { type: 'view', view });
 }
 
 onSave(serveStudentLink);
@@ -472,9 +482,15 @@ if (typeof window !== 'undefined') {
  * as the kiosk shows them. Never how long anyone has been out, and nothing
  * about how a student's passes are treated. See docs/adr/0022 and 0021.
  */
-export function studentView(at = Date.now()): StudentView {
+/**
+ * What a device in the Room sees. Names (who's out, who's in line) only for a
+ * device set up with a first name and PIN, and only if the class shows them;
+ * a Watching device gets counts. See docs/adr/0024.
+ */
+export function studentView(at = Date.now(), setUp = false): StudentView {
   const classId = account.activeClass?.id ?? null;
-  const shows = visibilityOf(findClass(classId));
+  const visibility = visibilityOf(findClass(classId));
+  const shows = setUp ? visibility : { ...visibility, names: false, lineNames: false };
   const status = passStatus(at);
   const noPass = classId ? noPassNow(classId, at) : null;
   const out = classId ? openPasses(classId) : [];

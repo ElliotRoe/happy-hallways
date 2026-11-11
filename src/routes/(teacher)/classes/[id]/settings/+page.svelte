@@ -40,7 +40,7 @@
     {
       key: 'names',
       title: 'Show names on student devices',
-      text: "Watching devices see who's out and who's in line, as the kiosk shows them. Off, only how many.",
+      text: "Devices set up with a first name and PIN see who's out and who's in line, as the kiosk shows them. Off, only how many. Devices that haven't set up only ever get how many.",
     },
     {
       key: 'where',

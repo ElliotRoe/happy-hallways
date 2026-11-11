@@ -192,8 +192,8 @@
       <StudentDeviceArt />
       <ul class="sees">
         <li><Icon name="check" size={16} />Whether passes are open, and how many are out or waiting</li>
-        <li><Icon name="check" size={16} />On their own device: their passes left, their place in line, their own pass</li>
-        <li class="never"><Icon name="x" size={16} />Never another student's name, your PIN, or anything you've noted</li>
+        <li><Icon name="check" size={16} />Once set up with their PIN: their own pass, passes left and place in line, and who's out, if the class shows names</li>
+        <li class="never"><Icon name="x" size={16} />Before they set up, no names at all. Never your PIN or anything you've noted</li>
       </ul>
     </aside>
   </div>

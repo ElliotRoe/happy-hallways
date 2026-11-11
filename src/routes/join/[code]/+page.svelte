@@ -14,7 +14,7 @@
    * The Student link, on a student's own Chromebook or phone, joined with the
    * class's code, which works only while that class is on (docs/adr/0023): whether passes
    * are open, and how many are out and waiting, straight from the teacher's
-   * computer. It never shows another student's name (docs/adr/0018). Once a
+   * computer. Until it's set up, it's never sent a name (docs/adr/0024). Once a
    * student sets up this device with their first name and PIN, it acts as them:
    * going, coming back, lining up and asking, and it shows their own status.
    * The teacher's computer decides; this device keeps only the Claim's random

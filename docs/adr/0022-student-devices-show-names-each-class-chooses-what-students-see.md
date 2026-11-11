@@ -1,5 +1,7 @@
 # Student devices show names; each class chooses what students see
 
+Superseded in part by ADR 0024: devices without a Claim are never sent names; these settings now decide what set-up devices see.
+
 ADR 0018 kept every other student's name off students' devices, because a
 link could be forwarded and put a class list of minors on devices nobody
 knows. Since ADR 0019 a device joins a Room that lasts one class period, with
